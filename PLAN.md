@@ -43,13 +43,36 @@ rules for sanctioned play) — flag it before then.
 
 ## Roadmap
 
-### Phase 1 — Registration & check-in (next)
+### Phase 1 — Registration & check-in (partly done)
 
 - Event model: name, format, game, round count, capacity, entry fee.
-- Player registration flow (self-serve link vs. organizer-entered).
+- ✅ **Player registration flow — self-serve, organizer-admitted.** Participants
+  sign up from the public page (name, optional email, optional deck) with no
+  account; submissions land in a `registrations` table and the organizer admits
+  them onto the roster. See the README for the full rationale. Key decisions:
+  - Registrations get their own table rather than appending into
+    `events.state`, which is written by whole-blob replacement (concurrent
+    writers would clobber each other) and can't be write-restricted per-key by
+    RLS (anon `update` there would let a participant wipe a live event).
+  - Emails stay out of the event blob, which is world-readable.
+  - The registration window and `status='pending'` are enforced in RLS, not
+    just the UI.
+  - **Participant self-edit was considered and dropped.** With no participant
+    identity the only mechanism is a bearer token in `localStorage`, which is
+    lost on a cleared browser or a second device — so it can't replace "ask the
+    organizer" anyway, and the organizer already has deck editing. Duplicate
+    sign-ups are likewise deliberately *bounded* (unique email index +
+    localStorage flag + a visible pending queue) rather than *prevented*:
+    prevention needs identity, and at a local store the real gate is showing up
+    and paying the entry fee.
+  - Also folded in: an event is no longer auto-created on page load (that was an
+    organizer-only write, so a participant arriving with no event running hit a
+    raw RLS error). Creation is now an explicit **Start an event** button.
 - Check-in: roster confirmed present before round 1 pairs; drop/no-show
   handling mid-event (the engine already supports `player.dropped`).
 - Decklist submission if the format requires it (optional per event).
+- Not built, worth revisiting if sign-up volume ever justifies it: a capacity
+  cap on registrations, and organizer-visible archive of rejected sign-ups.
 
 ### Phase 2 — Persistence ✅ (done)
 

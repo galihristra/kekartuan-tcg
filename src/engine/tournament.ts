@@ -7,6 +7,9 @@ export interface Player {
   /** National dex id of the deck's namesake Pokémon, set by the organizer. */
   deckPokemon1?: string;
   deckPokemon2?: string;
+  /** Set when this player was admitted from a self-registration; makes
+   *  admitting the same registration twice a no-op. */
+  registrationId?: string;
 }
 
 export type MatchResult = 'p1' | 'p2' | 'draw';

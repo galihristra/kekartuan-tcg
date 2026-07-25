@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import type { Player } from '../engine/tournament';
-import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
+import DeckSlots from './DeckSlots';
 import Modal from './Modal';
-import PokemonCombobox from './PokemonCombobox';
 
 interface DeckEditModalProps {
   open: boolean;
@@ -26,39 +25,6 @@ export default function DeckEditModal({
     player.deckPokemon2 ?? null,
   );
 
-  const renderSlot = (
-    id: string | null,
-    onPick: (id: string) => void,
-    onClear: () => void,
-    excludeId: string | null,
-  ) => {
-    const entry = getPokemon(id ?? undefined);
-    if (entry) {
-      return (
-        <div className="tk-deck-chip">
-          <img
-            className="tk-deck-sprite"
-            src={pokemonSpriteUrl(entry)}
-            alt=""
-            width={32}
-            height={32}
-          />
-          <span>{entry.name.toLowerCase()}</span>
-          <button
-            className="tk-x"
-            onClick={onClear}
-            aria-label={`Remove ${entry.name}`}
-          >
-            ×
-          </button>
-        </div>
-      );
-    }
-    return (
-      <PokemonCombobox onChange={onPick} excludeId={excludeId ?? undefined} />
-    );
-  };
-
   return (
     <Modal
       open={open}
@@ -66,10 +32,12 @@ export default function DeckEditModal({
       title={`Edit ${player.name}'s deck for ${eventName}`}
       className="tk-modal--wide"
     >
-      <div className="tk-deck-slots">
-        {renderSlot(slot1, setSlot1, () => setSlot1(null), slot2)}
-        {renderSlot(slot2, setSlot2, () => setSlot2(null), slot1)}
-      </div>
+      <DeckSlots
+        slot1={slot1}
+        slot2={slot2}
+        onChange1={setSlot1}
+        onChange2={setSlot2}
+      />
       <button
         className="tk-btn tk-deck-save"
         onClick={() => onSave(slot1, slot2)}

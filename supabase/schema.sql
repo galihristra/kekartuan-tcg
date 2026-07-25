@@ -120,3 +120,82 @@ create policy "admin_delete" on public.event_photos
 
 create index if not exists event_photos_event_id_idx
   on public.event_photos (event_id, created_at);
+
+-- ============================================================
+-- Registrations — participant self-sign-up for the active event
+-- ============================================================
+--
+-- Why a table instead of appending into events.state: that column is written
+-- by full-blob replacement (see saveEvent + the debounced autosave), so
+-- concurrent writers silently overwrite each other, and no RLS policy can
+-- express "you may only append to state.players" — granting anon update on
+-- that row would let any participant wipe a running event's results. Row
+-- granularity fixes both: anon gets insert here and no write on events at all.
+--
+-- Emails live only in this table, which anon cannot read. They are
+-- deliberately NOT copied into events.state, because that column is
+-- world-readable (see "public_read" above).
+
+create table if not exists public.registrations (
+  id             uuid primary key default gen_random_uuid(),
+  event_id       uuid not null references public.events(id) on delete cascade,
+  name           text not null check (char_length(trim(name)) between 1 and 60),
+  email          text check (email is null or char_length(email) <= 120),
+  deck_pokemon_1 text check (deck_pokemon_1 is null or deck_pokemon_1 ~ '^[0-9]{1,4}$'),
+  deck_pokemon_2 text check (deck_pokemon_2 is null or deck_pokemon_2 ~ '^[0-9]{1,4}$'),
+  -- 'rejected' rows are kept rather than deleted so the unique email index
+  -- below keeps blocking a dismissed address from signing up again.
+  status         text not null default 'pending'
+                 check (status in ('pending', 'admitted', 'rejected')),
+  created_at     timestamptz not null default now()
+);
+
+-- The submit form is untrusted input, so the length/format checks above are the
+-- real validation layer, not the client-side ones that mirror them.
+
+-- Partial, so any number of registrations without an email can coexist.
+create unique index if not exists registrations_event_email_idx
+  on public.registrations (event_id, lower(email)) where email is not null;
+
+create index if not exists registrations_event_status_idx
+  on public.registrations (event_id, status, created_at);
+
+alter table public.registrations enable row level security;
+
+-- anon may only insert, only as 'pending' (so nobody admits themselves), and
+-- only while the target event's registration window is genuinely open. That
+-- window is enforced here rather than only in the UI — keep this condition in
+-- step with `registrationOpen` in src/hooks/useEventState.ts.
+drop policy if exists "public_register" on public.registrations;
+create policy "public_register" on public.registrations
+  for insert
+  to anon, authenticated
+  with check (
+    status = 'pending'
+    and exists (
+      select 1 from public.events e
+      where e.id = event_id
+        and e.status = 'active'
+        and coalesce((e.state ->> 'round')::int, 0) = 0
+        and coalesce((e.state -> 'eventFinished')::boolean, false) = false
+    )
+  );
+
+-- Note the absence of an anon select policy: participant emails are visible to
+-- the organizer only. A participant's own "you're registered" state is tracked
+-- in localStorage instead of being read back from here.
+drop policy if exists "admin_read" on public.registrations;
+create policy "admin_read" on public.registrations
+  for select to authenticated
+  using (true);
+
+drop policy if exists "admin_update" on public.registrations;
+create policy "admin_update" on public.registrations
+  for update to authenticated
+  using (true)
+  with check (true);
+
+drop policy if exists "admin_delete" on public.registrations;
+create policy "admin_delete" on public.registrations
+  for delete to authenticated
+  using (true);
