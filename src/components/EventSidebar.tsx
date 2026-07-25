@@ -164,8 +164,11 @@ export default function EventSidebar({
                   loading="lazy"
                 />
               )}
+              {/* Long names ellipsize in the narrow sidebar, so keep the full
+                  one reachable on hover. */}
               <input
                 value={p.name}
+                title={p.name}
                 disabled={!isAdmin}
                 onChange={(e) => onRenamePlayer(p.id, e.target.value)}
               />

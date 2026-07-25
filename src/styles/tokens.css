@@ -112,7 +112,12 @@ html[data-theme='light'] .tk-root {
 }
 .tk-layout {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  /* Roster rows carry a seed, two deck sprites, a name field and two buttons —
+     260px couldn't fit them once decks became the norm.
+     minmax(0, …) rather than a bare 1fr: a bare fr track is minmax(auto, 1fr),
+     so it refuses to shrink below its contents' min-content and pushes the
+     whole page into horizontal scroll instead of letting them ellipsize. */
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
@@ -153,7 +158,9 @@ html[data-theme='light'] .tk-root {
 }
 @media (max-width: 800px) {
   .tk-layout {
-    grid-template-columns: 1fr;
+    /* See the desktop rule: a bare 1fr would let the roster's widest row set the
+       page width and force horizontal scrolling on a phone. */
+    grid-template-columns: minmax(0, 1fr);
   }
   /* Active event: lead with pairings/standings, drop the roster below it. */
   .tk-layout--active > *:nth-child(1) {
@@ -198,8 +205,18 @@ html[data-theme='light'] .tk-root {
   color: var(--gold-dim);
   width: 22px;
 }
+/* Scoped, not on .tk-seed itself, because PairingTicket shares the class.
+   Without this the seed would give up width once the name field can shrink. */
+.tk-roster-row .tk-seed {
+  flex: none;
+}
 .tk-roster-row input {
   flex: 1;
+  /* A flex item defaults to min-width:auto, and for an <input> that floors at
+     its `size` attribute (~20 characters) — so the name refused to shrink and
+     pushed the deck sprites and buttons out of the panel entirely. */
+  min-width: 0;
+  text-overflow: ellipsis;
   background: transparent;
   border: none;
   color: var(--text);
@@ -209,6 +226,12 @@ html[data-theme='light'] .tk-root {
 .tk-roster-row input:focus {
   outline: none;
   border-bottom: 1px solid var(--gold);
+}
+/* Smaller than the shared 40px, which is sized for the wide standings table and
+   pairing tickets — the sidebar can't spare that much per sprite. */
+.tk-roster-row .tk-deck-sprite-mini {
+  width: 26px;
+  height: 26px;
 }
 .tk-x {
   background: none;
