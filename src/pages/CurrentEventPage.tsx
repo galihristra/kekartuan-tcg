@@ -66,6 +66,8 @@ export default function CurrentEventPage({
           eventActive={eventActive}
           eventName={ev.eventName}
           onEventNameChange={ev.setEventName}
+          eventDescription={ev.eventDescription}
+          onEventDescriptionChange={ev.setEventDescription}
           saveLabel={ev.saveLabel}
           players={ev.players}
           onRenamePlayer={ev.renamePlayer}

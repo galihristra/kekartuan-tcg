@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Player } from '../engine/tournament';
+import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventStore';
 import type { Mode } from '../lib/eventStore';
 import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
 
@@ -7,6 +8,8 @@ interface EventSidebarProps {
   isAdmin: boolean;
   eventName: string;
   onEventNameChange: (name: string) => void;
+  eventDescription: string;
+  onEventDescriptionChange: (description: string) => void;
   saveLabel: string;
   players: Player[];
   onRenamePlayer: (id: string, name: string) => void;
@@ -29,6 +32,8 @@ export default function EventSidebar({
   isAdmin,
   eventName,
   onEventNameChange,
+  eventDescription,
+  onEventDescriptionChange,
   saveLabel,
   players,
   onRenamePlayer,
@@ -69,6 +74,24 @@ export default function EventSidebar({
         disabled={!isAdmin}
         onChange={(e) => onEventNameChange(e.target.value)}
       />
+      {(isAdmin || eventDescription) && (
+        <div className="tk-eventdescription-wrap">
+          <textarea
+            className="tk-eventdescription"
+            value={eventDescription}
+            placeholder="Event details — map link, start time, rules… (optional)"
+            disabled={!isAdmin}
+            maxLength={EVENT_DESCRIPTION_MAX_LENGTH}
+            rows={3}
+            onChange={(e) => onEventDescriptionChange(e.target.value)}
+          />
+          {isAdmin && (
+            <div className="tk-eventdescription-count tk-hint">
+              {eventDescription.length}/{EVENT_DESCRIPTION_MAX_LENGTH}
+            </div>
+          )}
+        </div>
+      )}
       <div className="tk-savestatus tk-hint">{saveLabel}</div>
       <button
         type="button"

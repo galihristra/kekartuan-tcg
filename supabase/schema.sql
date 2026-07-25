@@ -2,13 +2,18 @@
 -- Run this once in the Supabase dashboard: SQL Editor → New query → paste → Run.
 
 create table if not exists public.events (
-  id         uuid primary key default gen_random_uuid(),
-  name       text not null default 'Untitled event',
-  state      jsonb not null,
-  status     text not null default 'active' check (status in ('active', 'archived')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null default 'Untitled event',
+  description text not null default '' check (char_length(description) <= 200),
+  state       jsonb not null,
+  status      text not null default 'active' check (status in ('active', 'archived')),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
 );
+
+-- Migrating an existing database that predates this column:
+-- alter table public.events add column if not exists description text not null default '';
+-- alter table public.events add constraint events_description_check check (char_length(description) <= 200);
 
 -- Keep updated_at fresh on every write (used for "load latest active" and archive ordering).
 create or replace function public.set_updated_at()
