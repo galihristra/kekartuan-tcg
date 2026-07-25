@@ -49,7 +49,12 @@ export default function ArchivedEventDetail({
     onEventChange?.(updated);
     setEditingDeckPlayerId(null);
     try {
-      await saveEvent(updated.id, updated.name, updated.state);
+      await saveEvent(
+        updated.id,
+        updated.name,
+        updated.description,
+        updated.state,
+      );
     } catch (e) {
       console.error('Failed to save deck', e);
       // Ask the owner to re-read the server's truth if the write failed.
@@ -70,6 +75,9 @@ export default function ArchivedEventDetail({
         <div className="tk-champion">
           <span className="tk-error">Cancelled</span> — {event.name}
         </div>
+      )}
+      {event.description && (
+        <p className="tk-eventdescription-readonly">{event.description}</p>
       )}
       <h3 className="tk-section-title">
         {event.state.eventFinished

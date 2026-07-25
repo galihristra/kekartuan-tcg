@@ -42,6 +42,7 @@ export function useEventState() {
 
   const [eventId, setEventId] = useState<string | null>(null);
   const [eventName, setEventName] = useState('');
+  const [eventDescription, setEventDescription] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
@@ -50,6 +51,7 @@ export function useEventState() {
   const applyRecord = useCallback((rec: EventRecord) => {
     setEventId(rec.id);
     setEventName(rec.name);
+    setEventDescription(rec.description);
     const s = rec.state;
     setMode(s.mode);
     setPlayers(s.players);
@@ -101,7 +103,7 @@ export function useEventState() {
       doubleBracket,
     };
     const t = setTimeout(() => {
-      saveEvent(eventId, eventName, state)
+      saveEvent(eventId, eventName, eventDescription, state)
         .then(() => setSaveStatus('saved'))
         .catch((e) => {
           console.error('Save failed', e);
@@ -119,6 +121,7 @@ export function useEventState() {
     singleBracket,
     doubleBracket,
     eventName,
+    eventDescription,
     eventId,
     loading,
   ]);
@@ -242,6 +245,8 @@ export function useEventState() {
     // meta / persistence
     eventName,
     setEventName,
+    eventDescription,
+    setEventDescription,
     loading,
     loadError,
     saveLabel,

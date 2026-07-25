@@ -708,6 +708,39 @@ a.tk-btn {
   outline: none;
   border-color: var(--gold);
 }
+.tk-eventdescription-wrap {
+  margin-top: 8px;
+}
+.tk-eventdescription {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+}
+.tk-eventdescription:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+.tk-eventdescription:disabled {
+  resize: none;
+}
+.tk-eventdescription-count {
+  text-align: right;
+  margin-top: 2px;
+}
+.tk-eventdescription-readonly {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  margin: -4px 0 16px;
+}
 .tk-savestatus {
   margin: 6px 0 12px;
 }
