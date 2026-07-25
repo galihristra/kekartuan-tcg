@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Player } from '../engine/tournament';
 import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventStore';
-import type { Mode } from '../lib/eventStore';
+import type { Mode, Registration } from '../lib/eventStore';
 import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
+import PendingRegistrations from './PendingRegistrations';
 
 interface EventSidebarProps {
   isAdmin: boolean;
+  eventId: string;
+  registrationOpen: boolean;
+  onAdmitRegistrations: (regs: Registration[]) => Promise<void>;
   eventName: string;
   onEventNameChange: (name: string) => void;
   eventDescription: string;
@@ -30,6 +34,9 @@ interface EventSidebarProps {
 
 export default function EventSidebar({
   isAdmin,
+  eventId,
+  registrationOpen,
+  onAdmitRegistrations,
   eventName,
   onEventNameChange,
   eventDescription,
@@ -65,6 +72,16 @@ export default function EventSidebar({
     setNewName('');
   };
 
+  const admittedIds = useMemo(
+    () =>
+      new Set(
+        players
+          .map((p) => p.registrationId)
+          .filter((id): id is string => id != null),
+      ),
+    [players],
+  );
+
   return (
     <div className={`tk-panel ${!rosterOpen ? 'is-collapsed' : ''}`}>
       <input
@@ -93,6 +110,13 @@ export default function EventSidebar({
         </div>
       )}
       <div className="tk-savestatus tk-hint">{saveLabel}</div>
+      {isAdmin && registrationOpen && (
+        <PendingRegistrations
+          eventId={eventId}
+          onAdmit={onAdmitRegistrations}
+          admittedIds={admittedIds}
+        />
+      )}
       <button
         type="button"
         className="tk-roster-toggle"
@@ -140,8 +164,11 @@ export default function EventSidebar({
                   loading="lazy"
                 />
               )}
+              {/* Long names ellipsize in the narrow sidebar, so keep the full
+                  one reachable on hover. */}
               <input
                 value={p.name}
+                title={p.name}
                 disabled={!isAdmin}
                 onChange={(e) => onRenamePlayer(p.id, e.target.value)}
               />

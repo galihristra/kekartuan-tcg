@@ -14,13 +14,26 @@ import type {
   DoubleEliminationBracket,
 } from '../engine/tournament';
 import {
-  loadOrCreateActiveEvent,
+  loadActiveEvent,
+  createActiveEvent,
   saveEvent,
   archiveAndCreate,
+  setRegistrationStatus,
 } from '../lib/eventStore';
-import type { Mode, EventState, EventRecord } from '../lib/eventStore';
+import type {
+  Mode,
+  EventState,
+  EventRecord,
+  Registration,
+} from '../lib/eventStore';
+import {
+  admitIntoRoster,
+  unadmittedRegistrations,
+} from '../lib/registrationAdmission';
 
 type SaveStatus = 'saved' | 'saving' | 'error';
+
+const newPlayerId = () => `p-${Math.random().toString(36).slice(2, 9)}`;
 
 /** Everything `useEventState` exposes — passed down to the current-event page. */
 export type EventStateApi = ReturnType<typeof useEventState>;
@@ -63,14 +76,16 @@ export function useEventState() {
     setDoubleBracket(s.doubleBracket);
   }, []);
 
-  // Load (or create) the active event on startup.
+  // Load the active event on startup. Read-only — an event is only ever created
+  // by an explicit organizer action, so a participant can browse with no event
+  // running instead of tripping over an authenticated-only insert.
   useEffect(() => {
     let cancelled = false;
-    loadOrCreateActiveEvent()
+    loadActiveEvent()
       .then((rec) => {
         if (cancelled) return;
         skipSaveRef.current = true;
-        applyRecord(rec);
+        if (rec) applyRecord(rec);
         setLoading(false);
       })
       .catch((e) => {
@@ -137,17 +152,18 @@ export function useEventState() {
   const roundCount = parseInt(roundsInput, 10);
   const roundsValid = roundCount >= 3;
   const rosterLocked = round > 0;
+  const hasEvent = eventId != null;
+  // Self-registration closes as soon as the event starts pairing. Kept in step
+  // with the `public_register` RLS policy in supabase/schema.sql, which enforces
+  // the same window server-side.
+  const registrationOpen = hasEvent && round === 0 && !eventFinished;
 
   const addPlayer = (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) return;
     setPlayers((ps) => [
       ...ps,
-      {
-        id: `p-${Math.random().toString(36).slice(2, 9)}`,
-        name: trimmed,
-        seed: ps.length + 1,
-      },
+      { id: newPlayerId(), name: trimmed, seed: ps.length + 1 },
     ]);
   };
   const removePlayer = (id: string) =>
@@ -195,7 +211,44 @@ export function useEventState() {
     setRound(nextRound);
   };
 
+  /** Move pending registrations onto the roster. Safe to retry: registrations
+   *  already admitted are skipped, so a half-finished run can't duplicate anyone. */
+  const admitRegistrations = async (regs: Registration[]) => {
+    if (!eventId) return;
+    const fresh = unadmittedRegistrations(players, regs);
+    if (fresh.length === 0) return;
+    const nextPlayers = admitIntoRoster(players, fresh, newPlayerId);
+
+    // Persist the roster before flipping the registrations, so a failure here
+    // leaves them pending (and re-admittable) rather than admitted but lost.
+    // Awaited directly instead of riding the debounced autosave for that reason.
+    const state: EventState = {
+      mode,
+      players: nextPlayers,
+      matches,
+      round,
+      roundsInput,
+      eventFinished,
+      singleBracket,
+      doubleBracket,
+    };
+    await saveEvent(eventId, eventName, eventDescription, state);
+    await setRegistrationStatus(
+      fresh.map((r) => r.id),
+      'admitted',
+    );
+    // Re-saves the identical blob once via the autosave — harmless, and simpler
+    // than suppressing it.
+    setPlayers(nextPlayers);
+  };
+
   const finishEvent = () => setEventFinished(true);
+  /** Start the first event of the day (organizer-only; RLS rejects anon). */
+  const createEvent = async () => {
+    const rec = await createActiveEvent();
+    skipSaveRef.current = true;
+    applyRecord(rec);
+  };
   const resetEvent = async () => {
     if (!eventId) return;
     try {
@@ -243,6 +296,8 @@ export function useEventState() {
 
   return {
     // meta / persistence
+    eventId,
+    hasEvent,
     eventName,
     setEventName,
     eventDescription,
@@ -253,6 +308,8 @@ export function useEventState() {
 
     // roster
     players,
+    registrationOpen,
+    admitRegistrations,
     addPlayer,
     removePlayer,
     renamePlayer,
@@ -288,6 +345,7 @@ export function useEventState() {
     reportDouble,
 
     // lifecycle
+    createEvent,
     resetEvent,
   };
 }

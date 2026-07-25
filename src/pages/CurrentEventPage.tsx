@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useScrollLock } from '../hooks/useScrollLock';
 import type { EventStateApi } from '../hooks/useEventState';
+import { hasRegisteredLocally, registeredName } from '../lib/selfRegistration';
 import EventSidebar from '../components/EventSidebar';
 import SwissPanel from '../components/SwissPanel';
 import SingleElimPanel from '../components/SingleElimPanel';
 import DoubleElimPanel from '../components/DoubleElimPanel';
 import DeckEditModal from '../components/DeckEditModal';
+import RegistrationModal from '../components/RegistrationModal';
 
 interface CurrentEventPageProps {
   ev: EventStateApi;
@@ -18,6 +20,12 @@ export default function CurrentEventPage({
   isAdmin,
 }: CurrentEventPageProps) {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  // Flipped by a successful submit; otherwise read straight from localStorage so
+  // it stays correct once the event id arrives from the initial load.
+  const [justRegistered, setJustRegistered] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [editingDeckPlayerId, setEditingDeckPlayerId] = useState<string | null>(
     null,
   );
@@ -29,6 +37,22 @@ export default function CurrentEventPage({
   const confirmCancelEvent = async () => {
     await ev.resetEvent();
     setShowCancelConfirm(false);
+  };
+
+  const alreadyRegistered =
+    justRegistered || (ev.eventId ? hasRegisteredLocally(ev.eventId) : false);
+
+  const handleCreateEvent = async () => {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      await ev.createEvent();
+    } catch (e) {
+      console.error('Failed to start event', e);
+      setCreateError("Couldn't start an event. Try again.");
+    } finally {
+      setCreating(false);
+    }
   };
 
   // An event is "active" once it's running but not yet finished. On mobile this
@@ -58,11 +82,74 @@ export default function CurrentEventPage({
     );
   }
 
+  // Nothing is running. Participants get told so plainly; the organizer gets the
+  // button that starts the day's event (creating one is an authenticated write,
+  // so it can't happen automatically on load any more).
+  if (!ev.hasEvent || !ev.eventId) {
+    return (
+      <div className="tk-empty">
+        No event running right now.
+        {isAdmin ? (
+          <div className="tk-noevent-actions">
+            <button
+              className="tk-btn"
+              disabled={creating}
+              onClick={() => void handleCreateEvent()}
+            >
+              {creating ? 'Starting…' : 'Start an event'}
+            </button>
+            {createError && <p className="tk-error tk-hint">{createError}</p>}
+          </div>
+        ) : (
+          <>
+            <br />
+            Check back soon, or ask the organizer.
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
+      {!isAdmin && ev.registrationOpen && (
+        <div className="tk-join">
+          {alreadyRegistered ? (
+            <>
+              <span className="tk-join-ok">
+                You're registered
+                {registeredName(ev.eventId)
+                  ? ` as ${registeredName(ev.eventId)}`
+                  : ''}{' '}
+                ✓
+              </span>
+              <span className="tk-hint">
+                The organizer will confirm you — talk to them at the event to
+                change your deck.
+              </span>
+            </>
+          ) : (
+            <>
+              <div className="tk-join-copy">
+                <strong>Registration is open</strong>
+                <span className="tk-hint">
+                  Sign up for {ev.eventName} — no account needed.
+                </span>
+              </div>
+              <button className="tk-btn" onClick={() => setShowRegister(true)}>
+                Join event
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className={`tk-layout ${eventActive ? 'tk-layout--active' : ''}`}>
         <EventSidebar
           isAdmin={isAdmin}
+          eventId={ev.eventId}
+          registrationOpen={ev.registrationOpen}
+          onAdmitRegistrations={ev.admitRegistrations}
           eventActive={eventActive}
           eventName={ev.eventName}
           onEventNameChange={ev.setEventName}
@@ -153,6 +240,16 @@ export default function CurrentEventPage({
             </div>
           </div>
         </div>
+      )}
+
+      {showRegister && (
+        <RegistrationModal
+          open
+          onClose={() => setShowRegister(false)}
+          eventId={ev.eventId}
+          eventName={ev.eventName}
+          onRegistered={() => setJustRegistered(true)}
+        />
       )}
 
       {editingDeckPlayer && (
