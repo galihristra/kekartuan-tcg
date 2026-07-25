@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { computeStandings } from '../engine/tournament';
-import { saveEvent } from '../lib/eventStore';
+import { EVENT_DESCRIPTION_MAX_LENGTH, saveEvent } from '../lib/eventStore';
 import type { ArchivedEventSummary } from '../lib/eventStore';
 import StandingsTable from './StandingsTable';
 import EventPhotos from './EventPhotos';
@@ -26,6 +26,40 @@ export default function ArchivedEventDetail({
 
   const editingDeckPlayer =
     event.state.players.find((p) => p.id === editingDeckPlayerId) ?? null;
+
+  const [description, setDescription] = useState(event.description);
+  const [descSaveStatus, setDescSaveStatus] = useState<
+    'saved' | 'saving' | 'error'
+  >('saved');
+  const skipDescSaveRef = useRef(true);
+
+  // Resync the draft whenever the event prop changes — either navigating to
+  // a different event, or our own save below reflecting back through it.
+  useEffect(() => {
+    skipDescSaveRef.current = true;
+    setDescription(event.description);
+    setDescSaveStatus('saved');
+  }, [event.id, event.description]);
+
+  useEffect(() => {
+    if (skipDescSaveRef.current) {
+      skipDescSaveRef.current = false;
+      return;
+    }
+    setDescSaveStatus('saving');
+    const t = setTimeout(() => {
+      saveEvent(event.id, event.name, description, event.state)
+        .then(() => {
+          setDescSaveStatus('saved');
+          onEventChange?.({ ...event, description });
+        })
+        .catch((e) => {
+          console.error('Failed to save description', e);
+          setDescSaveStatus('error');
+        });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [description, event, onEventChange]);
 
   async function handleSaveDeck(
     deckPokemon1: string | null,
@@ -76,8 +110,28 @@ export default function ArchivedEventDetail({
           <span className="tk-error">Cancelled</span> — {event.name}
         </div>
       )}
-      {event.description && (
-        <p className="tk-eventdescription-readonly">{event.description}</p>
+      {isAdmin ? (
+        <div className="tk-eventdescription-wrap">
+          <textarea
+            className="tk-eventdescription"
+            value={description}
+            placeholder="Event details — map link, start time, rules… (optional)"
+            maxLength={EVENT_DESCRIPTION_MAX_LENGTH}
+            rows={3}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <div className="tk-eventdescription-count tk-hint">
+            {descSaveStatus === 'saving'
+              ? 'Saving…'
+              : descSaveStatus === 'error'
+                ? 'Save failed'
+                : `${description.length}/${EVENT_DESCRIPTION_MAX_LENGTH}`}
+          </div>
+        </div>
+      ) : (
+        event.description && (
+          <p className="tk-eventdescription-readonly">{event.description}</p>
+        )
       )}
       <h3 className="tk-section-title">
         {event.state.eventFinished
