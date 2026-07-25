@@ -85,6 +85,16 @@ export class DuplicateRegistrationError extends Error {
   }
 }
 
+/** Thrown when Postgres rejects the row on a `check` constraint. Shouldn't
+ *  happen — the form mirrors every limit — so it means the two have drifted, and
+ *  the message should say "your details" rather than blame the connection. */
+export class InvalidRegistrationError extends Error {
+  constructor() {
+    super('Some of those details were rejected. Check them and try again.');
+    this.name = 'InvalidRegistrationError';
+  }
+}
+
 const TABLE = 'events';
 const PHOTOS_TABLE = 'event_photos';
 const PHOTOS_BUCKET = 'event-photos';
@@ -247,9 +257,11 @@ export async function submitRegistration(
     deck_pokemon_1: input.deckPokemon1,
     deck_pokemon_2: input.deckPokemon2,
   });
-  // 23505 = unique_violation, i.e. this email already registered for the event.
   if (error) {
+    // 23505 = unique_violation, i.e. this email already registered for the event.
     if (error.code === '23505') throw new DuplicateRegistrationError();
+    // 23514 = check_violation, i.e. a value the DB's constraints reject.
+    if (error.code === '23514') throw new InvalidRegistrationError();
     throw error;
   }
 }

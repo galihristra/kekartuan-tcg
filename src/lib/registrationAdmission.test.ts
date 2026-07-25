@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Player } from '../engine/tournament';
 import type { Registration } from './eventStore';
+import { DECK_ID_PATTERN, POKEMON_LIST } from './pokemon';
 import {
   admitIntoRoster,
   unadmittedRegistrations,
@@ -22,6 +23,37 @@ function reg(over: Partial<Registration> = {}): Registration {
 
 let n = 0;
 const newId = () => `p-${++n}`;
+
+// Regression guard for the bug where the deck id check only allowed four digits,
+// so picking any mega/alternate form (Mega Venusaur, 10033) failed to submit
+// while looking like a network error. The DB is the enforcer, so what matters is
+// that every id we can offer is one it will accept.
+describe('deck ids the picker can produce are all accepted by the DB', () => {
+  it('every POKEMON_LIST id matches DECK_ID_PATTERN', () => {
+    const rejected = POKEMON_LIST.filter((p) => !DECK_ID_PATTERN.test(p.id));
+    expect(
+      rejected.map((p) => `${p.id} ${p.name}`),
+      'these Pokémon would be rejected by the deck_pokemon_* check constraints',
+    ).toEqual([]);
+  });
+
+  it('covers the real id range, including the 10000+ alternate forms', () => {
+    const ids = POKEMON_LIST.map((p) => Number(p.id));
+    // Guards the test itself: if the data ever stopped containing five-digit
+    // ids, the assertion above would pass for the wrong reason.
+    expect(Math.max(...ids)).toBeGreaterThan(9999);
+    expect(Math.min(...ids)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('still rejects values that are not dex ids', () => {
+    for (const bad of ['pikachu', '', '123456', '12a', '-1', '1.5', ' 25']) {
+      expect(
+        DECK_ID_PATTERN.test(bad),
+        `should reject ${JSON.stringify(bad)}`,
+      ).toBe(false);
+    }
+  });
+});
 
 describe('unadmittedRegistrations', () => {
   it('keeps registrations with no player yet', () => {

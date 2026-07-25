@@ -141,8 +141,11 @@ create table if not exists public.registrations (
   event_id       uuid not null references public.events(id) on delete cascade,
   name           text not null check (char_length(trim(name)) between 1 and 60),
   email          text check (email is null or char_length(email) <= 120),
-  deck_pokemon_1 text check (deck_pokemon_1 is null or deck_pokemon_1 ~ '^[0-9]{1,4}$'),
-  deck_pokemon_2 text check (deck_pokemon_2 is null or deck_pokemon_2 ~ '^[0-9]{1,4}$'),
+  -- National dex ids. Five digits, not four: alternate/mega/regional forms live
+  -- in the 10001-10326 range (see src/data/pokemon.json), and DECK_ID_PATTERN in
+  -- src/lib/eventStore.ts mirrors this.
+  deck_pokemon_1 text check (deck_pokemon_1 is null or deck_pokemon_1 ~ '^[0-9]{1,5}$'),
+  deck_pokemon_2 text check (deck_pokemon_2 is null or deck_pokemon_2 ~ '^[0-9]{1,5}$'),
   -- 'rejected' rows are kept rather than deleted so the unique email index
   -- below keeps blocking a dismissed address from signing up again.
   status         text not null default 'pending'
@@ -152,6 +155,18 @@ create table if not exists public.registrations (
 
 -- The submit form is untrusted input, so the length/format checks above are the
 -- real validation layer, not the client-side ones that mirror them.
+
+-- Repair databases created while the deck checks only allowed four digits, which
+-- rejected every mega/alternate form (e.g. 10033, Mega Venusaur). `create table
+-- if not exists` above leaves an existing table alone, so this has to run.
+alter table public.registrations
+  drop constraint if exists registrations_deck_pokemon_1_check,
+  drop constraint if exists registrations_deck_pokemon_2_check;
+alter table public.registrations
+  add constraint registrations_deck_pokemon_1_check
+    check (deck_pokemon_1 is null or deck_pokemon_1 ~ '^[0-9]{1,5}$'),
+  add constraint registrations_deck_pokemon_2_check
+    check (deck_pokemon_2 is null or deck_pokemon_2 ~ '^[0-9]{1,5}$');
 
 -- Partial, so any number of registrations without an email can coexist.
 create unique index if not exists registrations_event_email_idx

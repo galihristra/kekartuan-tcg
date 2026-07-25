@@ -8,6 +8,15 @@ export interface PokemonEntry {
 
 export const POKEMON_LIST: PokemonEntry[] = pokemonList;
 
+/** The shape of a national dex id, mirroring the `deck_pokemon_*` check
+ *  constraints in supabase/schema.sql.
+ *
+ *  Five digits, not four: alternate/mega/regional forms sit in the 10001-10326
+ *  range, and a four-digit limit silently made 97 of these entries impossible to
+ *  self-register with. `registrationAdmission.test.ts` asserts every id here
+ *  still matches, so refreshing the data can't quietly reintroduce that. */
+export const DECK_ID_PATTERN = /^[0-9]{1,5}$/;
+
 const POKEMON_BY_ID = new Map<string, PokemonEntry>(
   POKEMON_LIST.map((entry) => [entry.id, entry]),
 );

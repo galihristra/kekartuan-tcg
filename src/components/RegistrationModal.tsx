@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   DuplicateRegistrationError,
+  InvalidRegistrationError,
   REGISTRATION_EMAIL_MAX_LENGTH,
   REGISTRATION_NAME_MAX_LENGTH,
   submitRegistration,
@@ -54,7 +55,10 @@ export default function RegistrationModal({
       setDone(true);
       onRegistered();
     } catch (e) {
-      if (e instanceof DuplicateRegistrationError) {
+      if (
+        e instanceof DuplicateRegistrationError ||
+        e instanceof InvalidRegistrationError
+      ) {
         setError(e.message);
       } else {
         console.error('Registration failed', e);
