@@ -731,6 +731,15 @@ a.tk-btn {
   outline: none;
   border-color: var(--gold);
 }
+/* Same typography as the input, minus the box chrome and its padding. */
+.tk-eventname-readonly {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
 .tk-eventdescription-wrap {
   margin-top: 8px;
 }

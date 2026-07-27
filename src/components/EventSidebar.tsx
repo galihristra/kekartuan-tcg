@@ -84,13 +84,18 @@ export default function EventSidebar({
 
   return (
     <div className={`tk-panel ${!rosterOpen ? 'is-collapsed' : ''}`}>
-      <input
-        className="tk-eventname"
-        value={eventName}
-        placeholder="Event name"
-        disabled={!isAdmin}
-        onChange={(e) => onEventNameChange(e.target.value)}
-      />
+      {isAdmin ? (
+        <input
+          className="tk-eventname"
+          value={eventName}
+          placeholder="Event name"
+          onChange={(e) => onEventNameChange(e.target.value)}
+        />
+      ) : (
+        // A disabled input clips a long name with no way to focus or scroll
+        // it, so non-admins get the name as selectable text instead.
+        eventName && <div className="tk-eventname-readonly">{eventName}</div>
+      )}
       {isAdmin ? (
         <div className="tk-eventdescription-wrap">
           <textarea
