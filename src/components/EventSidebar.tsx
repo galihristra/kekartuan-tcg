@@ -84,30 +84,40 @@ export default function EventSidebar({
 
   return (
     <div className={`tk-panel ${!rosterOpen ? 'is-collapsed' : ''}`}>
-      <input
-        className="tk-eventname"
-        value={eventName}
-        placeholder="Event name"
-        disabled={!isAdmin}
-        onChange={(e) => onEventNameChange(e.target.value)}
-      />
-      {(isAdmin || eventDescription) && (
+      {isAdmin ? (
+        <input
+          className="tk-eventname"
+          value={eventName}
+          placeholder="Event name"
+          onChange={(e) => onEventNameChange(e.target.value)}
+        />
+      ) : (
+        // A disabled input clips a long name with no way to focus or scroll
+        // it, so non-admins get the name as selectable text instead.
+        eventName && <div className="tk-eventname-readonly">{eventName}</div>
+      )}
+      {isAdmin ? (
         <div className="tk-eventdescription-wrap">
           <textarea
             className="tk-eventdescription"
             value={eventDescription}
             placeholder="Event details — map link, start time, rules… (optional)"
-            disabled={!isAdmin}
             maxLength={EVENT_DESCRIPTION_MAX_LENGTH}
             rows={3}
             onChange={(e) => onEventDescriptionChange(e.target.value)}
           />
-          {isAdmin && (
-            <div className="tk-eventdescription-count tk-hint">
-              {eventDescription.length}/{EVENT_DESCRIPTION_MAX_LENGTH}
-            </div>
-          )}
+          <div className="tk-eventdescription-count tk-hint">
+            {eventDescription.length}/{EVENT_DESCRIPTION_MAX_LENGTH}
+          </div>
         </div>
+      ) : (
+        // Plain text for everyone else — a disabled textarea would make them
+        // drag the resize handle to read a description longer than 3 rows.
+        eventDescription && (
+          <div className="tk-eventdescription-wrap">
+            <p className="tk-eventdescription-readonly">{eventDescription}</p>
+          </div>
+        )
       )}
       <div className="tk-savestatus tk-hint">{saveLabel}</div>
       {isAdmin && registrationOpen && (

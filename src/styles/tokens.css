@@ -731,6 +731,15 @@ a.tk-btn {
   outline: none;
   border-color: var(--gold);
 }
+/* Same typography as the input, minus the box chrome and its padding. */
+.tk-eventname-readonly {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
 .tk-eventdescription-wrap {
   margin-top: 8px;
 }
@@ -750,9 +759,6 @@ a.tk-btn {
   outline: none;
   border-color: var(--gold);
 }
-.tk-eventdescription:disabled {
-  resize: none;
-}
 .tk-eventdescription-count {
   text-align: right;
   margin-top: 2px;
@@ -762,7 +768,14 @@ a.tk-btn {
   font-size: 13px;
   line-height: 1.4;
   white-space: pre-wrap;
+  /* Keep a pasted map link from pushing the narrow sidebar sideways. */
+  overflow-wrap: anywhere;
   margin: -4px 0 16px;
+}
+/* In the sidebar the wrap already supplies the spacing above, and the save
+   status line supplies it below. */
+.tk-eventdescription-wrap .tk-eventdescription-readonly {
+  margin: 0;
 }
 .tk-savestatus {
   margin: 6px 0 12px;
