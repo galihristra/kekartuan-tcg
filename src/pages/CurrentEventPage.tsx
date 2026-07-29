@@ -21,9 +21,10 @@ export default function CurrentEventPage({
 }: CurrentEventPageProps) {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  // Flipped by a successful submit; otherwise read straight from localStorage so
-  // it stays correct once the event id arrives from the initial load.
-  const [justRegistered, setJustRegistered] = useState(false);
+  // Which event this session just registered for. Tracked as an id rather than a
+  // boolean so it doesn't carry over when the active event is replaced — a plain
+  // flag would tell someone they're registered for an event they've never seen.
+  const [registeredFor, setRegisteredFor] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [editingDeckPlayerId, setEditingDeckPlayerId] = useState<string | null>(
@@ -40,7 +41,8 @@ export default function CurrentEventPage({
   };
 
   const alreadyRegistered =
-    justRegistered || (ev.eventId ? hasRegisteredLocally(ev.eventId) : false);
+    ev.eventId != null &&
+    (registeredFor === ev.eventId || hasRegisteredLocally(ev.eventId));
 
   const handleCreateEvent = async () => {
     setCreating(true);
@@ -244,11 +246,14 @@ export default function CurrentEventPage({
 
       {showRegister && (
         <RegistrationModal
+          // Drop any half-filled form (or a previous confirmation) if the active
+          // event is replaced while the modal is open.
+          key={ev.eventId}
           open
           onClose={() => setShowRegister(false)}
           eventId={ev.eventId}
           eventName={ev.eventName}
-          onRegistered={() => setJustRegistered(true)}
+          onRegistered={() => setRegisteredFor(ev.eventId)}
         />
       )}
 
