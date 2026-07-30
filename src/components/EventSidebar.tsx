@@ -130,7 +130,8 @@ export default function EventSidebar({
           </div>
         )
       )}
-      <div className="tk-savestatus tk-hint">{saveLabel}</div>
+      {/* Only admins can edit, so only admins have a save to report on. */}
+      {isAdmin && <div className="tk-savestatus tk-hint">{saveLabel}</div>}
       {isAdmin && registrationOpen && (
         <PendingRegistrations
           eventId={eventId}
