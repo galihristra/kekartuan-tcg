@@ -60,8 +60,12 @@ export function useEventState() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const skipSaveRef = useRef(true);
+  // Mirrors eventId so the refresh listener below can compare against the
+  // current event without re-subscribing on every change.
+  const eventIdRef = useRef<string | null>(null);
 
   const applyRecord = useCallback((rec: EventRecord) => {
+    eventIdRef.current = rec.id;
     setEventId(rec.id);
     setEventName(rec.name);
     setEventDescription(rec.description);
@@ -96,6 +100,35 @@ export function useEventState() {
       });
     return () => {
       cancelled = true;
+    };
+  }, [applyRecord]);
+
+  // The active event is loaded once, but it can be replaced while a tab sits
+  // open — the organizer finishes or cancels an event and starts the next one.
+  // Phones keep tabs alive for weeks and restore them without refetching, so
+  // without this a participant keeps seeing the finished event (including a
+  // stale "you're registered") and can never join its replacement.
+  //
+  // Deliberately not polling: this fires when the tab is actually looked at,
+  // which is the moment it matters and keeps the app's manual-refresh model.
+  useEffect(() => {
+    const refreshIfEventChanged = () => {
+      if (document.visibilityState !== 'visible') return;
+      loadActiveEvent()
+        .then((rec) => {
+          // Only adopt a *different* event. Re-applying the current one would
+          // overwrite the organizer's in-flight edits with an older server copy.
+          if (!rec || rec.id === eventIdRef.current) return;
+          skipSaveRef.current = true;
+          applyRecord(rec);
+        })
+        .catch((e) => console.error('Failed to refresh active event', e));
+    };
+    document.addEventListener('visibilitychange', refreshIfEventChanged);
+    window.addEventListener('focus', refreshIfEventChanged);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshIfEventChanged);
+      window.removeEventListener('focus', refreshIfEventChanged);
     };
   }, [applyRecord]);
 
