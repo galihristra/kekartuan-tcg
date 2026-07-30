@@ -4,6 +4,7 @@ import { EVENT_DESCRIPTION_MAX_LENGTH, saveEvent } from '../lib/eventStore';
 import type { ArchivedEventSummary } from '../lib/eventStore';
 import StandingsTable from './StandingsTable';
 import EventPhotos from './EventPhotos';
+import EventLocation from './EventLocation';
 import DeckEditModal from './DeckEditModal';
 
 interface ArchivedEventDetailProps {
@@ -27,39 +28,55 @@ export default function ArchivedEventDetail({
   const editingDeckPlayer =
     event.state.players.find((p) => p.id === editingDeckPlayerId) ?? null;
 
-  const [description, setDescription] = useState(event.description);
-  const [descSaveStatus, setDescSaveStatus] = useState<
+  // Location and description share one draft and one timer, so editing both in
+  // the same burst is a single write rather than two racing ones.
+  const [draft, setDraft] = useState({
+    description: event.description,
+    location: event.location,
+  });
+  const [draftSaveStatus, setDraftSaveStatus] = useState<
     'saved' | 'saving' | 'error'
   >('saved');
-  const skipDescSaveRef = useRef(true);
+  const skipDraftSaveRef = useRef(true);
 
   // Resync the draft whenever the event prop changes — either navigating to
   // a different event, or our own save below reflecting back through it.
   useEffect(() => {
-    skipDescSaveRef.current = true;
-    setDescription(event.description);
-    setDescSaveStatus('saved');
-  }, [event.id, event.description]);
+    skipDraftSaveRef.current = true;
+    setDraft({ description: event.description, location: event.location });
+    setDraftSaveStatus('saved');
+  }, [event.id, event.description, event.location]);
 
   useEffect(() => {
-    if (skipDescSaveRef.current) {
-      skipDescSaveRef.current = false;
+    if (skipDraftSaveRef.current) {
+      skipDraftSaveRef.current = false;
       return;
     }
-    setDescSaveStatus('saving');
+    // Nothing to write. Also breaks a save loop: every save hands back a new
+    // `event` object, which re-runs this effect, and if the draft had merely
+    // round-tripped to its stored value (type a character, delete it) there'd
+    // be no resync above to suppress the next write.
+    if (
+      draft.description === event.description &&
+      draft.location === event.location
+    ) {
+      setDraftSaveStatus('saved');
+      return;
+    }
+    setDraftSaveStatus('saving');
     const t = setTimeout(() => {
-      saveEvent(event.id, event.name, description, event.state)
+      saveEvent(event.id, { name: event.name, ...draft, state: event.state })
         .then(() => {
-          setDescSaveStatus('saved');
-          onEventChange?.({ ...event, description });
+          setDraftSaveStatus('saved');
+          onEventChange?.({ ...event, ...draft });
         })
         .catch((e) => {
-          console.error('Failed to save description', e);
-          setDescSaveStatus('error');
+          console.error('Failed to save event details', e);
+          setDraftSaveStatus('error');
         });
     }, 600);
     return () => clearTimeout(t);
-  }, [description, event, onEventChange]);
+  }, [draft, event, onEventChange]);
 
   async function handleSaveDeck(
     deckPokemon1: string | null,
@@ -83,12 +100,12 @@ export default function ArchivedEventDetail({
     onEventChange?.(updated);
     setEditingDeckPlayerId(null);
     try {
-      await saveEvent(
-        updated.id,
-        updated.name,
-        updated.description,
-        updated.state,
-      );
+      await saveEvent(updated.id, {
+        name: updated.name,
+        description: updated.description,
+        location: updated.location,
+        state: updated.state,
+      });
     } catch (e) {
       console.error('Failed to save deck', e);
       // Ask the owner to re-read the server's truth if the write failed.
@@ -110,22 +127,30 @@ export default function ArchivedEventDetail({
           <span className="tk-error">Cancelled</span> — {event.name}
         </div>
       )}
+      <EventLocation
+        isAdmin={isAdmin}
+        value={draft.location}
+        onChange={(location) => setDraft((d) => ({ ...d, location }))}
+      />
       {isAdmin ? (
         <div className="tk-eventdescription-wrap">
           <textarea
             className="tk-eventdescription"
-            value={description}
-            placeholder="Event details — map link, start time, rules… (optional)"
+            value={draft.description}
+            placeholder="Event details — start time, prizes, rules… (optional)"
             maxLength={EVENT_DESCRIPTION_MAX_LENGTH}
             rows={3}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, description: e.target.value }))
+            }
           />
+          {/* Doubles as the save indicator for the location above. */}
           <div className="tk-eventdescription-count tk-hint">
-            {descSaveStatus === 'saving'
+            {draftSaveStatus === 'saving'
               ? 'Saving…'
-              : descSaveStatus === 'error'
+              : draftSaveStatus === 'error'
                 ? 'Save failed'
-                : `${description.length}/${EVENT_DESCRIPTION_MAX_LENGTH}`}
+                : `${draft.description.length}/${EVENT_DESCRIPTION_MAX_LENGTH}`}
           </div>
         </div>
       ) : (

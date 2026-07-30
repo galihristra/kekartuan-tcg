@@ -56,6 +56,7 @@ export function useEventState() {
   const [eventId, setEventId] = useState<string | null>(null);
   const [eventName, setEventName] = useState('');
   const [eventDescription, setEventDescription] = useState('');
+  const [eventLocation, setEventLocation] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
@@ -69,6 +70,7 @@ export function useEventState() {
     setEventId(rec.id);
     setEventName(rec.name);
     setEventDescription(rec.description);
+    setEventLocation(rec.location);
     const s = rec.state;
     setMode(s.mode);
     setPlayers(s.players);
@@ -151,7 +153,12 @@ export function useEventState() {
       doubleBracket,
     };
     const t = setTimeout(() => {
-      saveEvent(eventId, eventName, eventDescription, state)
+      saveEvent(eventId, {
+        name: eventName,
+        description: eventDescription,
+        location: eventLocation,
+        state,
+      })
         .then(() => setSaveStatus('saved'))
         .catch((e) => {
           console.error('Save failed', e);
@@ -170,6 +177,7 @@ export function useEventState() {
     doubleBracket,
     eventName,
     eventDescription,
+    eventLocation,
     eventId,
     loading,
   ]);
@@ -265,7 +273,12 @@ export function useEventState() {
       singleBracket,
       doubleBracket,
     };
-    await saveEvent(eventId, eventName, eventDescription, state);
+    await saveEvent(eventId, {
+      name: eventName,
+      description: eventDescription,
+      location: eventLocation,
+      state,
+    });
     await setRegistrationStatus(
       fresh.map((r) => r.id),
       'admitted',
@@ -335,6 +348,8 @@ export function useEventState() {
     setEventName,
     eventDescription,
     setEventDescription,
+    eventLocation,
+    setEventLocation,
     loading,
     loadError,
     saveLabel,

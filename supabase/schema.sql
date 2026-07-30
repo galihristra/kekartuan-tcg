@@ -5,15 +5,23 @@ create table if not exists public.events (
   id          uuid primary key default gen_random_uuid(),
   name        text not null default 'Untitled event',
   description text not null default '' check (char_length(description) <= 200),
+  location    text not null default '' check (char_length(location) <= 200),
   state       jsonb not null,
   status      text not null default 'active' check (status in ('active', 'archived')),
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
 
--- Migrating an existing database that predates this column:
--- alter table public.events add column if not exists description text not null default '';
--- alter table public.events add constraint events_description_check check (char_length(description) <= 200);
+-- Columns added after the table first shipped. `create table if not exists`
+-- above is a no-op on an existing database, so these run every time to catch
+-- one up — idempotent, hence dropping each constraint before re-adding it.
+alter table public.events add column if not exists description text not null default '';
+alter table public.events drop constraint if exists events_description_check;
+alter table public.events add constraint events_description_check check (char_length(description) <= 200);
+
+alter table public.events add column if not exists location text not null default '';
+alter table public.events drop constraint if exists events_location_check;
+alter table public.events add constraint events_location_check check (char_length(location) <= 200);
 
 -- Keep updated_at fresh on every write (used for "load latest active" and archive ordering).
 create or replace function public.set_updated_at()

@@ -740,6 +740,48 @@ a.tk-btn {
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
+/* Location sits on one line with its copy/open actions. It wraps rather than
+   squeezing the field, so the actions drop below in the narrow sidebar. */
+.tk-eventlocation-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.tk-eventlocation {
+  /* min-width:0 lets a long pasted link shrink the field instead of forcing
+     the flex row wider than the sidebar. */
+  flex: 1;
+  min-width: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.tk-eventlocation:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+.tk-eventlocation-readonly {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+  /* Same reason as the description: a map link must not widen the sidebar. */
+  overflow-wrap: anywhere;
+}
+.tk-eventlocation-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .tk-eventdescription-wrap {
   margin-top: 8px;
 }
