@@ -3,6 +3,7 @@ import type { Player } from '../engine/tournament';
 import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventStore';
 import type { Mode, Registration } from '../lib/eventStore';
 import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
+import EventLocation from './EventLocation';
 import PendingRegistrations from './PendingRegistrations';
 
 interface EventSidebarProps {
@@ -12,6 +13,8 @@ interface EventSidebarProps {
   onAdmitRegistrations: (regs: Registration[]) => Promise<void>;
   eventName: string;
   onEventNameChange: (name: string) => void;
+  eventLocation: string;
+  onEventLocationChange: (location: string) => void;
   eventDescription: string;
   onEventDescriptionChange: (description: string) => void;
   saveLabel: string;
@@ -39,6 +42,8 @@ export default function EventSidebar({
   onAdmitRegistrations,
   eventName,
   onEventNameChange,
+  eventLocation,
+  onEventLocationChange,
   eventDescription,
   onEventDescriptionChange,
   saveLabel,
@@ -96,12 +101,18 @@ export default function EventSidebar({
         // it, so non-admins get the name as selectable text instead.
         eventName && <div className="tk-eventname-readonly">{eventName}</div>
       )}
+      {/* Above the description: it's the one detail people act on. */}
+      <EventLocation
+        isAdmin={isAdmin}
+        value={eventLocation}
+        onChange={onEventLocationChange}
+      />
       {isAdmin ? (
         <div className="tk-eventdescription-wrap">
           <textarea
             className="tk-eventdescription"
             value={eventDescription}
-            placeholder="Event details — map link, start time, rules… (optional)"
+            placeholder="Event details — start time, prizes, rules… (optional)"
             maxLength={EVENT_DESCRIPTION_MAX_LENGTH}
             rows={3}
             onChange={(e) => onEventDescriptionChange(e.target.value)}
@@ -119,7 +130,8 @@ export default function EventSidebar({
           </div>
         )
       )}
-      <div className="tk-savestatus tk-hint">{saveLabel}</div>
+      {/* Only admins can edit, so only admins have a save to report on. */}
+      {isAdmin && <div className="tk-savestatus tk-hint">{saveLabel}</div>}
       {isAdmin && registrationOpen && (
         <PendingRegistrations
           eventId={eventId}

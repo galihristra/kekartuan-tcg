@@ -128,7 +128,12 @@ html[data-theme='light'] .tk-root {
   justify-content: space-between;
   width: 100%;
   /* Carry the heading's bottom spacing here so the h3 can zero its margin
-     and stay vertically centered with the caret. */
+     and stay vertically centered with the caret. The top margin is its own
+     rather than borrowed from whatever precedes it: non-admins get no save
+     status line above, and without this the heading collides with the
+     location. Collapses against the save status for admins, so their
+     spacing is unchanged. */
+  margin-top: 12px;
   margin-bottom: 12px;
   padding: 0;
   background: none;
@@ -740,6 +745,48 @@ a.tk-btn {
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
+/* Location sits on one line with its copy/open actions. It wraps rather than
+   squeezing the field, so the actions drop below in the narrow sidebar. */
+.tk-eventlocation-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.tk-eventlocation {
+  /* min-width:0 lets a long pasted link shrink the field instead of forcing
+     the flex row wider than the sidebar. */
+  flex: 1;
+  min-width: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.tk-eventlocation:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+.tk-eventlocation-readonly {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+  /* Same reason as the description: a map link must not widen the sidebar. */
+  overflow-wrap: anywhere;
+}
+.tk-eventlocation-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 .tk-eventdescription-wrap {
   margin-top: 8px;
 }
@@ -772,8 +819,9 @@ a.tk-btn {
   overflow-wrap: anywhere;
   margin: -4px 0 16px;
 }
-/* In the sidebar the wrap already supplies the spacing above, and the save
-   status line supplies it below. */
+/* In the sidebar the wrap already supplies the spacing above, and whatever
+   follows supplies it below — the save status for admins, the roster
+   toggle's own top margin otherwise. */
 .tk-eventdescription-wrap .tk-eventdescription-readonly {
   margin: 0;
 }

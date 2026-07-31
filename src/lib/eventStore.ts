@@ -20,14 +20,19 @@ export interface EventState {
   doubleBracket: DoubleEliminationBracket | null;
 }
 
-/** Free-text info shown alongside the event (map link, start time, rules) —
+/** Free-text info shown alongside the event (start time, prizes, rules) —
  *  optional, editable by the organizer only, capped to keep it a blurb. */
 export const EVENT_DESCRIPTION_MAX_LENGTH = 200;
+
+/** Where the event is: a venue name or a map link. Kept out of `description`
+ *  so participants can copy or open it in one tap. Optional; '' means unset. */
+export const EVENT_LOCATION_MAX_LENGTH = 200;
 
 export interface EventRecord {
   id: string;
   name: string;
   description: string;
+  location: string;
   state: EventState;
 }
 
@@ -35,6 +40,7 @@ export interface ArchivedEventSummary {
   id: string;
   name: string;
   description: string;
+  location: string;
   created_at: string;
   updated_at: string;
   state: EventState;
@@ -132,7 +138,7 @@ function normalizeState(
 export async function loadActiveEvent(): Promise<EventRecord | null> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, name, description, state')
+    .select('id, name, description, location, state')
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
     .limit(1)
@@ -143,6 +149,7 @@ export async function loadActiveEvent(): Promise<EventRecord | null> {
     id: data.id,
     name: data.name,
     description: data.description ?? '',
+    location: data.location ?? '',
     state: normalizeState(data.state),
   };
 }
@@ -153,26 +160,36 @@ export async function createActiveEvent(): Promise<EventRecord> {
   const { data, error } = await supabase
     .from(TABLE)
     .insert({ name, state, status: 'active' })
-    .select('id, name, description, state')
+    .select('id, name, description, location, state')
     .single();
   if (error) throw error;
   return {
     id: data.id,
     name: data.name,
     description: data.description ?? '',
+    location: data.location ?? '',
     state: normalizeState(data.state),
   };
 }
 
+/** The event's editable fields. Passed as an object rather than positionally —
+ *  `name`, `description` and `location` are all bare strings, and transposing
+ *  two of them at a call site would be silent and persistent. */
+export interface EventFields {
+  name: string;
+  description: string;
+  location: string;
+  state: EventState;
+}
+
 export async function saveEvent(
   id: string,
-  name: string,
-  description: string,
-  state: EventState,
+  fields: EventFields,
 ): Promise<void> {
+  const { name, description, location, state } = fields;
   const { error } = await supabase
     .from(TABLE)
-    .update({ name, description, state })
+    .update({ name, description, location, state })
     .eq('id', id);
   if (error) throw error;
 }
@@ -192,7 +209,7 @@ export async function archiveAndCreate(
 export async function listArchivedEvents(): Promise<ArchivedEventSummary[]> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, name, description, created_at, updated_at, state')
+    .select('id, name, description, location, created_at, updated_at, state')
     .eq('status', 'archived')
     // Order by when the event was created, so editing an archived event
     // (e.g. fixing a deck) doesn't reshuffle the list.
@@ -202,6 +219,7 @@ export async function listArchivedEvents(): Promise<ArchivedEventSummary[]> {
     id: r.id,
     name: r.name,
     description: r.description ?? '',
+    location: r.location ?? '',
     created_at: r.created_at,
     updated_at: r.updated_at,
     state: normalizeState(r.state),
@@ -212,7 +230,9 @@ export async function listArchivedEvents(): Promise<ArchivedEventSummary[]> {
 export async function loadEventById(id: string): Promise<EventDetail | null> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, name, description, created_at, updated_at, state, status')
+    .select(
+      'id, name, description, location, created_at, updated_at, state, status',
+    )
     .eq('id', id)
     .maybeSingle();
   // A malformed uuid is rejected by Postgres (22P02) rather than matching
@@ -226,6 +246,7 @@ export async function loadEventById(id: string): Promise<EventDetail | null> {
     id: data.id,
     name: data.name,
     description: data.description ?? '',
+    location: data.location ?? '',
     created_at: data.created_at,
     updated_at: data.updated_at,
     state: normalizeState(data.state),

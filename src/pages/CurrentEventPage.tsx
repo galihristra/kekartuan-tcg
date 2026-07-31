@@ -155,6 +155,8 @@ export default function CurrentEventPage({
           eventActive={eventActive}
           eventName={ev.eventName}
           onEventNameChange={ev.setEventName}
+          eventLocation={ev.eventLocation}
+          onEventLocationChange={ev.setEventLocation}
           eventDescription={ev.eventDescription}
           onEventDescriptionChange={ev.setEventDescription}
           saveLabel={ev.saveLabel}

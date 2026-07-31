@@ -3,35 +3,10 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import { loadEventById } from '../lib/eventStore';
 import type { ArchivedEventSummary, EventDetail } from '../lib/eventStore';
 import ArchivedEventDetail from '../components/ArchivedEventDetail';
+import CopyButton from '../components/CopyButton';
 
 interface ArchivedEventPageProps {
   isAdmin: boolean;
-}
-
-// Clipboard while idle, check mark for the moment after a successful copy.
-function ClipboardIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="9" y="9" width="11" height="12" rx="2" />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"
-      />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M4 12.5 9 18 20 6"
-      />
-    </svg>
-  );
 }
 
 /** One past event at its own shareable URL: `/event/<uuid>`. */
@@ -39,7 +14,6 @@ export default function ArchivedEventPage({ isAdmin }: ArchivedEventPageProps) {
   const { eventId } = useParams<{ eventId: string }>();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!eventId) return;
@@ -78,16 +52,6 @@ export default function ArchivedEventPage({ isAdmin }: ArchivedEventPageProps) {
     [eventId],
   );
 
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (e) {
-      console.error('Failed to copy link', e);
-    }
-  }
-
   if (loading) {
     return (
       <div className="tk-panel">
@@ -118,14 +82,7 @@ export default function ArchivedEventPage({ isAdmin }: ArchivedEventPageProps) {
       <div className="tk-roundbar">
         <div className="tk-roundlabel">Past event</div>
         <div className="tk-roundbar-actions">
-          <button
-            className={`tk-btn ghost tk-icon-btn ${copied ? 'is-copied' : ''}`}
-            onClick={copyLink}
-            title={copied ? 'Link copied' : 'Copy link'}
-            aria-label={copied ? 'Link copied' : 'Copy link'}
-          >
-            {copied ? <CheckIcon /> : <ClipboardIcon />}
-          </button>
+          <CopyButton value={window.location.href} label="link" />
           <Link className="tk-btn ghost" to="/past-events">
             ← All events
           </Link>
