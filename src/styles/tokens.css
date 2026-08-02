@@ -396,6 +396,14 @@ a.tk-btn {
 }
 .tk-swap-control {
   margin: -4px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tk-swap-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .tk-swap-control select {
   background: var(--card);

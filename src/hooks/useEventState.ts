@@ -312,13 +312,29 @@ export function useEventState() {
     );
   };
 
-  /** Organizer override: swap the opponents of two undecided pairings in the
-   *  same round (e.g. to break up a rematch the auto-pairer forced). */
-  const swapSwissPairing = (matchA: SwissMatch, matchB: SwissMatch) => {
+  /** Organizer override: pull one specific player out of an undecided pairing
+   *  and trade them for one specific player from another undecided pairing
+   *  (e.g. to break up a rematch the auto-pairer forced), leaving everyone
+   *  else's pairing untouched. */
+  const swapSwissPlayers = (
+    matchA: SwissMatch,
+    sideA: 'p1' | 'p2',
+    matchB: SwissMatch,
+    sideB: 'p1' | 'p2',
+  ) => {
+    const playerA = sideA === 'p1' ? matchA.p1Id : matchA.p2Id;
+    const playerB = sideB === 'p1' ? matchB.p1Id : matchB.p2Id;
+    if (!playerA || !playerB || matchA === matchB) return;
     setMatches((all) =>
       all.map((m) => {
-        if (m === matchA) return { ...m, p2Id: matchB.p2Id };
-        if (m === matchB) return { ...m, p2Id: matchA.p2Id };
+        if (m === matchA)
+          return sideA === 'p1'
+            ? { ...m, p1Id: playerB }
+            : { ...m, p2Id: playerB };
+        if (m === matchB)
+          return sideB === 'p1'
+            ? { ...m, p1Id: playerA }
+            : { ...m, p2Id: playerA };
         return m;
       }),
     );
@@ -394,7 +410,7 @@ export function useEventState() {
     startRound,
     finishEvent,
     reportSwiss,
-    swapSwissPairing,
+    swapSwissPlayers,
     standings,
 
     // brackets

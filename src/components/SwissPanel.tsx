@@ -17,7 +17,12 @@ interface SwissPanelProps {
   onFinishEvent: () => void;
   onNewEvent: () => void;
   onReportSwiss: (match: SwissMatch, patch: Partial<SwissMatch>) => void;
-  onSwapPairing: (matchA: SwissMatch, matchB: SwissMatch) => void;
+  onSwapPlayers: (
+    matchA: SwissMatch,
+    sideA: 'p1' | 'p2',
+    matchB: SwissMatch,
+    sideB: 'p1' | 'p2',
+  ) => void;
 }
 
 /** True if these two players faced each other in an earlier round. */
@@ -51,7 +56,7 @@ export default function SwissPanel({
   onFinishEvent,
   onNewEvent,
   onReportSwiss,
-  onSwapPairing,
+  onSwapPlayers,
 }: SwissPanelProps) {
   if (eventFinished) {
     return (
@@ -146,51 +151,71 @@ export default function SwissPanel({
 
       {(() => {
         const regular = roundMatches.filter((m) => !m.isBye);
-        const swappable = regular.filter((m) => !m.result);
-        return regular.map((m, i) => (
-          <div key={i}>
-            <PairingTicket
-              index={i}
-              p1={playerMap[m.p1Id]}
-              p2={playerMap[m.p2Id!]}
-              match={m}
-              onReport={(patch) => onReportSwiss(m, patch)}
-              readOnly={!isAdmin}
-            />
-            {isRematch(matches, round, m) && (
-              <div className="tk-hint tk-rematch-warning">
-                ⚠ Rematch — these two already played this event
-                {isAdmin && !m.result && ' — swap an opponent below to fix it'}
-              </div>
-            )}
-            {isAdmin && !m.result && swappable.length > 1 && (
-              <div className="tk-swap-control">
-                <label className="tk-hint">
-                  Swap opponent:{' '}
-                  <select
-                    value=""
-                    onChange={(e) => {
-                      if (e.target.value === '') return;
-                      const other = swappable[Number(e.target.value)];
-                      if (other && other !== m) onSwapPairing(m, other);
-                    }}
-                  >
-                    <option value="">Choose a pairing…</option>
-                    {swappable.map(
-                      (om, oi) =>
-                        om !== m && (
-                          <option key={oi} value={oi}>
-                            {playerMap[om.p1Id]?.name} vs{' '}
-                            {playerMap[om.p2Id!]?.name}
-                          </option>
-                        ),
-                    )}
-                  </select>
-                </label>
-              </div>
-            )}
-          </div>
-        ));
+        // Every player currently sitting in an unreported pairing this
+        // round — the pool a single player can be traded into.
+        type Side = 'p1' | 'p2';
+        const individuals: {
+          match: SwissMatch;
+          side: Side;
+          playerId: string;
+        }[] = [];
+        regular.forEach((om) => {
+          if (om.result) return;
+          individuals.push({ match: om, side: 'p1', playerId: om.p1Id });
+          if (om.p2Id)
+            individuals.push({ match: om, side: 'p2', playerId: om.p2Id });
+        });
+
+        return regular.map((m, i) => {
+          const others = individuals.filter((o) => o.match !== m);
+          return (
+            <div key={i}>
+              <PairingTicket
+                index={i}
+                p1={playerMap[m.p1Id]}
+                p2={playerMap[m.p2Id!]}
+                match={m}
+                onReport={(patch) => onReportSwiss(m, patch)}
+                readOnly={!isAdmin}
+              />
+              {isRematch(matches, round, m) && (
+                <div className="tk-hint tk-rematch-warning">
+                  ⚠ Rematch — these two already played this event
+                  {isAdmin && !m.result && ' — swap a player below to fix it'}
+                </div>
+              )}
+              {isAdmin && !m.result && others.length > 0 && (
+                <div className="tk-swap-control">
+                  {(['p1', 'p2'] as Side[]).map((side) => {
+                    const playerId = side === 'p1' ? m.p1Id : m.p2Id;
+                    if (!playerId) return null;
+                    return (
+                      <label key={side} className="tk-hint tk-swap-row">
+                        Swap {playerMap[playerId]?.name} with:{' '}
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value === '') return;
+                            const target = others[Number(e.target.value)];
+                            if (target)
+                              onSwapPlayers(m, side, target.match, target.side);
+                          }}
+                        >
+                          <option value="">Choose a player…</option>
+                          {others.map((o, oi) => (
+                            <option key={oi} value={oi}>
+                              {playerMap[o.playerId]?.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        });
       })()}
       {roundMatches
         .filter((m) => m.isBye)
