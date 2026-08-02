@@ -68,6 +68,16 @@ describe('Swiss pairing', () => {
           standings[i].points,
         );
       }
+
+      // No two players should ever face each other twice.
+      const seenPairs = new Set<string>();
+      matches
+        .filter((m) => !m.isBye)
+        .forEach((m) => {
+          const key = [m.p1Id, m.p2Id].sort().join('|');
+          expect(seenPairs.has(key)).toBe(false);
+          seenPairs.add(key);
+        });
     },
   );
 });

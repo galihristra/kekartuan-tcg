@@ -193,6 +193,7 @@ export default function CurrentEventPage({
               onFinishEvent={ev.finishEvent}
               onNewEvent={ev.resetEvent}
               onReportSwiss={ev.reportSwiss}
+              onSwapPairing={ev.swapSwissPairing}
             />
           )}
 

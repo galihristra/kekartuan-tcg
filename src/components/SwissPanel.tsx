@@ -17,6 +17,23 @@ interface SwissPanelProps {
   onFinishEvent: () => void;
   onNewEvent: () => void;
   onReportSwiss: (match: SwissMatch, patch: Partial<SwissMatch>) => void;
+  onSwapPairing: (matchA: SwissMatch, matchB: SwissMatch) => void;
+}
+
+/** True if these two players faced each other in an earlier round. */
+function isRematch(
+  matches: SwissMatch[],
+  round: number,
+  m: SwissMatch,
+): boolean {
+  if (!m.p2Id) return false;
+  return matches.some(
+    (other) =>
+      other.round < round &&
+      !other.isBye &&
+      ((other.p1Id === m.p1Id && other.p2Id === m.p2Id) ||
+        (other.p1Id === m.p2Id && other.p2Id === m.p1Id)),
+  );
 }
 
 export default function SwissPanel({
@@ -34,6 +51,7 @@ export default function SwissPanel({
   onFinishEvent,
   onNewEvent,
   onReportSwiss,
+  onSwapPairing,
 }: SwissPanelProps) {
   if (eventFinished) {
     return (
@@ -126,19 +144,54 @@ export default function SwissPanel({
         </div>
       )}
 
-      {roundMatches
-        .filter((m) => !m.isBye)
-        .map((m, i) => (
-          <PairingTicket
-            key={i}
-            index={i}
-            p1={playerMap[m.p1Id]}
-            p2={playerMap[m.p2Id!]}
-            match={m}
-            onReport={(patch) => onReportSwiss(m, patch)}
-            readOnly={!isAdmin}
-          />
-        ))}
+      {(() => {
+        const regular = roundMatches.filter((m) => !m.isBye);
+        const swappable = regular.filter((m) => !m.result);
+        return regular.map((m, i) => (
+          <div key={i}>
+            <PairingTicket
+              index={i}
+              p1={playerMap[m.p1Id]}
+              p2={playerMap[m.p2Id!]}
+              match={m}
+              onReport={(patch) => onReportSwiss(m, patch)}
+              readOnly={!isAdmin}
+            />
+            {isRematch(matches, round, m) && (
+              <div className="tk-hint tk-rematch-warning">
+                ⚠ Rematch — these two already played this event
+                {isAdmin && !m.result && ' — swap an opponent below to fix it'}
+              </div>
+            )}
+            {isAdmin && !m.result && swappable.length > 1 && (
+              <div className="tk-swap-control">
+                <label className="tk-hint">
+                  Swap opponent:{' '}
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value === '') return;
+                      const other = swappable[Number(e.target.value)];
+                      if (other && other !== m) onSwapPairing(m, other);
+                    }}
+                  >
+                    <option value="">Choose a pairing…</option>
+                    {swappable.map(
+                      (om, oi) =>
+                        om !== m && (
+                          <option key={oi} value={oi}>
+                            {playerMap[om.p1Id]?.name} vs{' '}
+                            {playerMap[om.p2Id!]?.name}
+                          </option>
+                        ),
+                    )}
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
+        ));
+      })()}
       {roundMatches
         .filter((m) => m.isBye)
         .map((m, i) => (

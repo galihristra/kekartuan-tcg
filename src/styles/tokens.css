@@ -390,6 +390,21 @@ a.tk-btn {
   font-size: 13px;
   margin-bottom: 8px;
 }
+.tk-rematch-warning {
+  color: var(--loss);
+  margin: -4px 0 8px;
+}
+.tk-swap-control {
+  margin: -4px 0 8px;
+}
+.tk-swap-control select {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
 .tk-standings {
   width: 100%;
   border-collapse: collapse;

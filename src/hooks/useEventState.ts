@@ -312,6 +312,18 @@ export function useEventState() {
     );
   };
 
+  /** Organizer override: swap the opponents of two undecided pairings in the
+   *  same round (e.g. to break up a rematch the auto-pairer forced). */
+  const swapSwissPairing = (matchA: SwissMatch, matchB: SwissMatch) => {
+    setMatches((all) =>
+      all.map((m) => {
+        if (m === matchA) return { ...m, p2Id: matchB.p2Id };
+        if (m === matchB) return { ...m, p2Id: matchA.p2Id };
+        return m;
+      }),
+    );
+  };
+
   const standings = useMemo(
     () => computeStandings(players, matches),
     [players, matches],
@@ -382,6 +394,7 @@ export function useEventState() {
     startRound,
     finishEvent,
     reportSwiss,
+    swapSwissPairing,
     standings,
 
     // brackets
