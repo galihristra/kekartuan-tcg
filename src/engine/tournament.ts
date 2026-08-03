@@ -286,6 +286,34 @@ function hadBye(matches: SwissMatch[], id: string): boolean {
   return matches.some((m) => !!m.isBye && m.p1Id === id);
 }
 
+/**
+ * Backtracking search for a pairing of `pool` with no rematches. Tries
+ * candidates in list order (closest in standings first) so the result stays
+ * close to a straight top-down pairing, but backtracks instead of forcing a
+ * rematch the moment a greedy choice dead-ends. `budget` bounds the search
+ * so a pool with no valid solution (or a pathological one) fails fast
+ * instead of hanging.
+ */
+function pairWithoutRematches(
+  pool: Player[],
+  matches: SwissMatch[],
+  budget: { steps: number },
+): SwissPairing[] | null {
+  if (pool.length === 0) return [];
+  if (budget.steps <= 0) return null;
+  budget.steps--;
+
+  const [p1, ...rest] = pool;
+  for (let i = 0; i < rest.length; i++) {
+    if (hasPlayed(matches, p1.id, rest[i].id)) continue;
+    const remaining = [...rest.slice(0, i), ...rest.slice(i + 1)];
+    const sub = pairWithoutRematches(remaining, matches, budget);
+    if (sub) return [{ p1Id: p1.id, p2Id: rest[i].id }, ...sub];
+    if (budget.steps <= 0) return null;
+  }
+  return null;
+}
+
 function generateSwissPairings(
   players: Player[],
   matches: SwissMatch[],
@@ -312,14 +340,23 @@ function generateSwissPairings(
     if (!byePlayer) byePlayer = pool.pop() ?? null;
   }
 
-  const unpaired = [...pool];
-  const pairings: SwissPairing[] = [];
-  while (unpaired.length > 0) {
-    const p1 = unpaired.shift()!;
-    let idx = unpaired.findIndex((p2) => !hasPlayed(matches, p1.id, p2.id));
-    if (idx === -1) idx = 0;
-    const p2 = unpaired.splice(idx, 1)[0];
-    pairings.push({ p1Id: p1.id, p2Id: p2.id });
+  const found = pairWithoutRematches(pool, matches, { steps: 200_000 });
+  let pairings: SwissPairing[];
+  if (found) {
+    pairings = found;
+  } else {
+    // No rematch-free pairing exists (or the search budget ran out on a huge
+    // field) — fall back to a straight greedy pass so pairing always
+    // terminates. This may force a rematch as a last resort.
+    const unpaired = [...pool];
+    pairings = [];
+    while (unpaired.length > 0) {
+      const p1 = unpaired.shift()!;
+      let idx = unpaired.findIndex((p2) => !hasPlayed(matches, p1.id, p2.id));
+      if (idx === -1) idx = 0;
+      const p2 = unpaired.splice(idx, 1)[0];
+      pairings.push({ p1Id: p1.id, p2Id: p2.id });
+    }
   }
 
   return { pairings, byePlayerId: byePlayer ? byePlayer.id : null };

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   computeStandings,
   generateSwissPairings,
@@ -70,6 +70,84 @@ describe('Swiss pairing', () => {
       }
     },
   );
+});
+
+describe('Swiss pairing avoids avoidable rematches', () => {
+  // Regression test for the bug where the pairer forced a rematch even
+  // though a valid rematch-free pairing existed for the round. With
+  // players processed in order [p1..p6] (order === input order in round 1,
+  // once the shuffle is neutralized below) and this history:
+  //   p1-p2, p2-p4, p2-p5, p2-p6
+  // a naive greedy first-fit pairs p1 with p3 immediately (the first player
+  // p1 hasn't faced), which strands p2 — every other player left (p4, p5,
+  // p6) is someone p2 has already played, forcing a rematch. A valid
+  // rematch-free pairing does exist (p1-p4, p2-p3, p5-p6); only a
+  // backtracking search finds it.
+  it('backtracks out of a dead end instead of forcing a rematch', () => {
+    const players = makePlayers(6);
+    const forbidden: SwissMatch[] = [
+      {
+        p1Id: 'p1',
+        p2Id: 'p2',
+        round: 0,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+      {
+        p1Id: 'p2',
+        p2Id: 'p4',
+        round: 0,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+      {
+        p1Id: 'p2',
+        p2Id: 'p5',
+        round: 0,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+      {
+        p1Id: 'p2',
+        p2Id: 'p6',
+        round: 0,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+    ];
+    const forbiddenKeys = new Set(
+      forbidden.map((m) => [m.p1Id, m.p2Id!].sort().join('|')),
+    );
+
+    // Round 1 pairs by a random shuffle of the roster; pin it to the
+    // identity permutation so the pairing order is deterministic (p1..p6).
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    try {
+      const { pairings, byePlayerId } = generateSwissPairings(
+        players,
+        forbidden,
+        1,
+      );
+      expect(byePlayerId).toBeNull();
+      expect(pairings).toHaveLength(3);
+      const seen = new Set<string>();
+      pairings.forEach(({ p1Id, p2Id }) => {
+        const key = [p1Id, p2Id].sort().join('|');
+        expect(forbiddenKeys.has(key)).toBe(false);
+        expect(seen.has(p1Id)).toBe(false);
+        expect(seen.has(p2Id)).toBe(false);
+        seen.add(p1Id);
+        seen.add(p2Id);
+      });
+      expect(seen.size).toBe(6);
+    } finally {
+      randomSpy.mockRestore();
+    }
+  });
 });
 
 describe('Standings match history', () => {

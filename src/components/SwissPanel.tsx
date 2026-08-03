@@ -17,6 +17,28 @@ interface SwissPanelProps {
   onFinishEvent: () => void;
   onNewEvent: () => void;
   onReportSwiss: (match: SwissMatch, patch: Partial<SwissMatch>) => void;
+  onSwapPlayers: (
+    matchA: SwissMatch,
+    sideA: 'p1' | 'p2',
+    matchB: SwissMatch,
+    sideB: 'p1' | 'p2',
+  ) => void;
+}
+
+/** True if these two players faced each other in an earlier round. */
+function isRematch(
+  matches: SwissMatch[],
+  round: number,
+  m: SwissMatch,
+): boolean {
+  if (!m.p2Id) return false;
+  return matches.some(
+    (other) =>
+      other.round < round &&
+      !other.isBye &&
+      ((other.p1Id === m.p1Id && other.p2Id === m.p2Id) ||
+        (other.p1Id === m.p2Id && other.p2Id === m.p1Id)),
+  );
 }
 
 export default function SwissPanel({
@@ -34,6 +56,7 @@ export default function SwissPanel({
   onFinishEvent,
   onNewEvent,
   onReportSwiss,
+  onSwapPlayers,
 }: SwissPanelProps) {
   if (eventFinished) {
     return (
@@ -126,19 +149,74 @@ export default function SwissPanel({
         </div>
       )}
 
-      {roundMatches
-        .filter((m) => !m.isBye)
-        .map((m, i) => (
-          <PairingTicket
-            key={i}
-            index={i}
-            p1={playerMap[m.p1Id]}
-            p2={playerMap[m.p2Id!]}
-            match={m}
-            onReport={(patch) => onReportSwiss(m, patch)}
-            readOnly={!isAdmin}
-          />
-        ))}
+      {(() => {
+        const regular = roundMatches.filter((m) => !m.isBye);
+        // Every player currently sitting in an unreported pairing this
+        // round — the pool a single player can be traded into.
+        type Side = 'p1' | 'p2';
+        const individuals: {
+          match: SwissMatch;
+          side: Side;
+          playerId: string;
+        }[] = [];
+        regular.forEach((om) => {
+          if (om.result) return;
+          individuals.push({ match: om, side: 'p1', playerId: om.p1Id });
+          if (om.p2Id)
+            individuals.push({ match: om, side: 'p2', playerId: om.p2Id });
+        });
+
+        return regular.map((m, i) => {
+          const others = individuals.filter((o) => o.match !== m);
+          return (
+            <div key={i}>
+              <PairingTicket
+                index={i}
+                p1={playerMap[m.p1Id]}
+                p2={playerMap[m.p2Id!]}
+                match={m}
+                onReport={(patch) => onReportSwiss(m, patch)}
+                readOnly={!isAdmin}
+              />
+              {isRematch(matches, round, m) && (
+                <div className="tk-hint tk-rematch-warning">
+                  ⚠ Rematch — these two already played this event
+                  {isAdmin && !m.result && ' — swap a player below to fix it'}
+                </div>
+              )}
+              {isAdmin && !m.result && others.length > 0 && (
+                <div className="tk-swap-control">
+                  {(['p1', 'p2'] as Side[]).map((side) => {
+                    const playerId = side === 'p1' ? m.p1Id : m.p2Id;
+                    if (!playerId) return null;
+                    return (
+                      <label key={side} className="tk-hint tk-swap-row">
+                        Swap {playerMap[playerId]?.name} with:{' '}
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value === '') return;
+                            const target = others[Number(e.target.value)];
+                            if (target)
+                              onSwapPlayers(m, side, target.match, target.side);
+                          }}
+                        >
+                          <option value="">Choose a player…</option>
+                          {others.map((o, oi) => (
+                            <option key={oi} value={oi}>
+                              {playerMap[o.playerId]?.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        });
+      })()}
       {roundMatches
         .filter((m) => m.isBye)
         .map((m, i) => (
