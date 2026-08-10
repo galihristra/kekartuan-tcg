@@ -71,6 +71,18 @@ html[data-theme='light'] .tk-root {
   border-bottom: 1px solid var(--border);
   padding-bottom: 16px;
 }
+/* The logo is a tall wordmark, so it sits beside the title rather than above
+   it, and its height is what anchors the pair. */
+.tk-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tk-logo {
+  height: 52px;
+  width: auto;
+  display: block;
+}
 .tk-title {
   font-size: 28px;
   text-transform: uppercase;
@@ -1013,6 +1025,12 @@ a.tk-btn {
   .tk-header {
     padding-bottom: 12px;
     margin-bottom: 16px;
+  }
+  .tk-brand {
+    gap: 10px;
+  }
+  .tk-logo {
+    height: 42px;
   }
   .tk-title {
     font-size: 22px;

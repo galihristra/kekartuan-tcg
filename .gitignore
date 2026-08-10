@@ -11,3 +11,4 @@ dist
 
 # Source archives (not part of the tracked project)
 *.zip
+*.source.png

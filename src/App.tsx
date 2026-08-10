@@ -19,8 +19,8 @@ import ArchivedEventPage from './pages/ArchivedEventPage';
 
 const MODE_TABS: [Mode, string][] = [
   ['swiss', 'Swiss'],
-  ['single', 'Single Elim'],
-  ['double', 'Double Elim'],
+  // ['single', 'Single Elim'],
+  // ['double', 'Double Elim'],
 ];
 
 /** The router keeps the previous scroll position; start each page at the top. */
@@ -49,9 +49,17 @@ export default function App() {
     <div className="tk-root">
       <ScrollToTop />
       <div className="tk-header">
-        <div className="tk-title">
-          Pokemon TCG Event Manager
-          <small>Pairing &amp; Bracket Engine</small>
+        <div className="tk-brand">
+          <img
+            className="tk-logo"
+            src="/logo-kekartuan.png"
+            alt=""
+            aria-hidden="true"
+          />
+          <div className="tk-title">
+            Kekartuan TCG
+            <small>Pairing &amp; Bracket Engine</small>
+          </div>
         </div>
         <div className="tk-headright">
           <div className="tk-tabs">
