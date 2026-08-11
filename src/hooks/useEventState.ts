@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   computeStandings,
   generateSwissPairings,
+  generateRoundRobinSchedule,
+  applyGameWin,
+  dropPlayer as applyDropPlayer,
   createSingleEliminationBracket,
   reportSingleEliminationResult,
   createDoubleEliminationBracket,
@@ -190,8 +193,15 @@ export function useEventState() {
     3,
     Math.ceil(Math.log2(Math.max(players.length, 2))),
   );
-  const roundCount = parseInt(roundsInput, 10);
-  const roundsValid = roundCount >= 3;
+  // League's round count is derived from the generated schedule (fixed once
+  // the roster locks), not an organizer-entered value like Swiss's roundsInput.
+  const roundCount =
+    mode === 'league'
+      ? matches.length
+        ? Math.max(...matches.map((m) => m.round))
+        : 0
+      : parseInt(roundsInput, 10);
+  const roundsValid = mode === 'league' ? players.length >= 2 : roundCount >= 3;
   const rosterLocked = round > 0;
   const hasEvent = eventId != null;
   // Self-registration closes as soon as the event starts pairing. Kept in step
@@ -233,6 +243,18 @@ export function useEventState() {
     round > 0 && roundMatches.every((m) => m.isBye || m.result);
 
   const startRound = () => {
+    if (mode === 'league') {
+      // The whole schedule is generated once, up front — later calls just
+      // advance the round pointer over matches that already exist.
+      if (round === 0) {
+        const { matches: schedule } = generateRoundRobinSchedule(players);
+        setMatches(schedule);
+        setRound(1);
+      } else {
+        setRound((r) => r + 1);
+      }
+      return;
+    }
     const nextRound = round + 1;
     const { pairings, byePlayerId } = generateSwissPairings(
       players,
@@ -340,9 +362,38 @@ export function useEventState() {
     );
   };
 
+  /** Records one game of a best-of-3 league match; auto-decides the match once either side reaches 2 game wins. */
+  const reportLeagueGame = (match: SwissMatch, winner: 'p1' | 'p2') => {
+    const patch = applyGameWin(match, winner);
+    setMatches((all) => all.map((m) => (m === match ? { ...m, ...patch } : m)));
+  };
+
+  /** Records a time-limit draw. The UI only offers this at a 1-1 game score. */
+  const reportLeagueDraw = (match: SwissMatch) => {
+    setMatches((all) =>
+      all.map((m) => (m === match ? { ...m, result: 'draw' } : m)),
+    );
+  };
+
+  /** Marks a player dropped and forfeits their not-yet-decided matches (including future league rounds, which already exist as rows). */
+  const dropPlayer = (playerId: string) => {
+    const { players: nextPlayers, matches: nextMatches } = applyDropPlayer(
+      players,
+      matches,
+      playerId,
+    );
+    setPlayers(nextPlayers);
+    setMatches(nextMatches);
+  };
+
   const standings = useMemo(
-    () => computeStandings(players, matches),
-    [players, matches],
+    () =>
+      computeStandings(
+        players,
+        matches,
+        mode === 'league' ? 'league' : 'swiss',
+      ),
+    [players, matches, mode],
   );
 
   const genSingle = () =>
@@ -390,6 +441,7 @@ export function useEventState() {
     removePlayer,
     renamePlayer,
     setPlayerDeck,
+    dropPlayer,
     rosterLocked,
     playerMap,
 
@@ -412,6 +464,10 @@ export function useEventState() {
     reportSwiss,
     swapSwissPlayers,
     standings,
+
+    // league
+    reportLeagueGame,
+    reportLeagueDraw,
 
     // brackets
     singleBracket,

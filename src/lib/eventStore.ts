@@ -6,7 +6,7 @@ import type {
   DoubleEliminationBracket,
 } from '../engine/tournament';
 
-export type Mode = 'swiss' | 'single' | 'double';
+export type Mode = 'swiss' | 'single' | 'double' | 'league';
 
 /** Everything about one event that we persist (excludes transient UI like the add-player input). */
 export interface EventState {

@@ -1,32 +1,6 @@
 import { useState } from 'react';
 import type { Player, SwissMatch, MatchResult } from '../engine/tournament';
-import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
-
-function DeckSprites({ player }: { player: Player }) {
-  const deck1 = getPokemon(player.deckPokemon1);
-  const deck2 = getPokemon(player.deckPokemon2);
-  if (!deck1 && !deck2) return null;
-  return (
-    <>
-      {deck1 && (
-        <img
-          className="tk-deck-sprite-mini"
-          src={pokemonSpriteUrl(deck1)}
-          alt={deck1.name}
-          loading="lazy"
-        />
-      )}
-      {deck2 && (
-        <img
-          className="tk-deck-sprite-mini"
-          src={pokemonSpriteUrl(deck2)}
-          alt={deck2.name}
-          loading="lazy"
-        />
-      )}
-    </>
-  );
-}
+import DeckSprites from './DeckSprites';
 
 interface GameToggleProps {
   close: boolean;

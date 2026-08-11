@@ -113,7 +113,11 @@ export default function ArchivedEventDetail({
     }
   }
 
-  const standings = computeStandings(event.state.players, event.state.matches);
+  const standings = computeStandings(
+    event.state.players,
+    event.state.matches,
+    event.state.mode === 'league' ? 'league' : 'swiss',
+  );
 
   return (
     <>
@@ -168,6 +172,7 @@ export default function ArchivedEventDetail({
         playerMap={Object.fromEntries(
           event.state.players.map((p) => [p.id, p]),
         )}
+        mode={event.state.mode}
         onEditDeck={isAdmin ? setEditingDeckPlayerId : undefined}
       />
       <h3 className="tk-section-title">Photos</h3>
