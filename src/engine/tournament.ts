@@ -467,6 +467,22 @@ function dropPlayer(
   return { players: nextPlayers, matches: nextMatches };
 }
 
+/**
+ * Matches that have actually happened by `round`. A league's schedule is
+ * generated for every round up front, including byes for rounds that
+ * haven't been reached yet — and a bye counts as a win the moment it's in
+ * the array (unlike a regular match, which is naturally gated on having a
+ * `result`), so an unreached bye must be filtered out before computing
+ * standings or it scores early. Decided matches (played or forfeited) keep
+ * counting regardless of round, since a drop should score immediately.
+ */
+function matchesThroughRound(
+  matches: SwissMatch[],
+  round: number,
+): SwissMatch[] {
+  return matches.filter((m) => !m.isBye || m.round <= round);
+}
+
 // ===================== Single elimination =====================
 function generateSeedOrder(size: number): number[] {
   let seeds = [1, 2];
@@ -799,6 +815,7 @@ export {
   generateRoundRobinSchedule,
   applyGameWin,
   dropPlayer,
+  matchesThroughRound,
   generateSeedOrder,
   createSingleEliminationBracket,
   reportSingleEliminationResult,

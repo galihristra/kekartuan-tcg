@@ -95,15 +95,17 @@ export default function PairingTicket({
         {match.result === 'p1' && (
           <span className="tk-stamp win">
             {p1.name} won {match.p1Games}–{match.p2Games}
+            {match.forfeited && ' (forfeit)'}
           </span>
         )}
         {match.result === 'p2' && (
           <span className="tk-stamp win">
             {p2.name} won {match.p2Games}–{match.p1Games}
+            {match.forfeited && ' (forfeit)'}
           </span>
         )}
         {match.result === 'draw' && <span className="tk-stamp draw">Draw</span>}
-        {decided && !readOnly && (
+        {decided && !readOnly && !match.forfeited && (
           <button
             className="tk-btn ghost tk-btn--sm"
             onClick={() => onReport({ result: null, p1Games: 0, p2Games: 0 })}

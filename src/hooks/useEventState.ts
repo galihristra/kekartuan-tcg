@@ -5,6 +5,7 @@ import {
   generateRoundRobinSchedule,
   applyGameWin,
   dropPlayer as applyDropPlayer,
+  matchesThroughRound,
   createSingleEliminationBracket,
   reportSingleEliminationResult,
   createDoubleEliminationBracket,
@@ -390,10 +391,10 @@ export function useEventState() {
     () =>
       computeStandings(
         players,
-        matches,
+        matchesThroughRound(matches, round),
         mode === 'league' ? 'league' : 'swiss',
       ),
-    [players, matches, mode],
+    [players, matches, mode, round],
   );
 
   const genSingle = () =>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { computeStandings } from '../engine/tournament';
+import { computeStandings, matchesThroughRound } from '../engine/tournament';
 import { EVENT_DESCRIPTION_MAX_LENGTH, saveEvent } from '../lib/eventStore';
 import type { ArchivedEventSummary } from '../lib/eventStore';
 import StandingsTable from './StandingsTable';
@@ -115,7 +115,7 @@ export default function ArchivedEventDetail({
 
   const standings = computeStandings(
     event.state.players,
-    event.state.matches,
+    matchesThroughRound(event.state.matches, event.state.round),
     event.state.mode === 'league' ? 'league' : 'swiss',
   );
 

@@ -5,6 +5,7 @@ import {
   generateRoundRobinSchedule,
   applyGameWin,
   dropPlayer,
+  matchesThroughRound,
   createSingleEliminationBracket,
   reportSingleEliminationResult,
   createDoubleEliminationBracket,
@@ -456,5 +457,65 @@ describe('dropPlayer', () => {
       forfeited: true,
     });
     expect(nextMatches[3]).toEqual(matches[3]);
+  });
+});
+
+describe('matchesThroughRound', () => {
+  it('drops byes scheduled for rounds not yet reached, keeps everything else', () => {
+    const matches: SwissMatch[] = [
+      { p1Id: 'p1', round: 1, isBye: true },
+      { p1Id: 'p2', round: 2, isBye: true },
+      {
+        p1Id: 'p3',
+        p2Id: 'p4',
+        round: 1,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+      {
+        p1Id: 'p3',
+        p2Id: 'p5',
+        round: 2,
+        result: null,
+        p1Games: 0,
+        p2Games: 0,
+      },
+    ];
+    const visible = matchesThroughRound(matches, 1);
+    expect(visible).toEqual([matches[0], matches[2], matches[3]]);
+  });
+
+  it('keeps a forfeited match regardless of round, since a drop should score immediately', () => {
+    const matches: SwissMatch[] = [
+      {
+        p1Id: 'p1',
+        p2Id: 'p2',
+        round: 4,
+        result: 'p2',
+        p1Games: 0,
+        p2Games: 2,
+        forfeited: true,
+      },
+    ];
+    expect(matchesThroughRound(matches, 1)).toEqual(matches);
+  });
+
+  // Regression test: generateRoundRobinSchedule front-loads every round's
+  // matches (including future byes) the moment the league starts. Without
+  // filtering through matchesThroughRound first, computeStandings counted
+  // every player's bye immediately — win #1 for everyone before a single
+  // game was played.
+  it('prevents a round-robin schedule from crediting future byes to standings', () => {
+    const players = makePlayers(5);
+    const { matches } = generateRoundRobinSchedule(players);
+
+    const round1Visible = matchesThroughRound(matches, 1);
+    const standings = computeStandings(players, round1Visible, 'league');
+
+    // Nobody has played a match yet, so only the round-1 bye recipient
+    // should have any points; everyone else must be at zero.
+    const withPoints = standings.filter((s) => s.points > 0);
+    expect(withPoints.length).toBeLessThanOrEqual(1);
   });
 });
