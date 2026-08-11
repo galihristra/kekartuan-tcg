@@ -19,6 +19,7 @@ import ArchivedEventPage from './pages/ArchivedEventPage';
 
 const MODE_TABS: [Mode, string][] = [
   ['swiss', 'Swiss'],
+  ['league', 'League'],
   // ['single', 'Single Elim'],
   // ['double', 'Double Elim'],
 ];

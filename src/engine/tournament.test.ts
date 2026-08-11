@@ -2,6 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   computeStandings,
   generateSwissPairings,
+  generateRoundRobinSchedule,
+  applyGameWin,
+  dropPlayer,
+  matchesThroughRound,
   createSingleEliminationBracket,
   reportSingleEliminationResult,
   createDoubleEliminationBracket,
@@ -270,4 +274,248 @@ describe('Double elimination', () => {
       expect(seatedCount).toBe(n);
     },
   );
+});
+
+describe('Round-robin schedule', () => {
+  it.each([2, 3, 4, 5, 6, 7, 8])(
+    'pairs every player against every other exactly once for n=%i',
+    (n) => {
+      const players = makePlayers(n);
+      const { matches, roundCount } = generateRoundRobinSchedule(players);
+
+      expect(roundCount).toBe(n % 2 === 0 ? n - 1 : n);
+
+      const regular = matches.filter((m) => !m.isBye);
+      const expectedPairs = new Set<string>();
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          expectedPairs.add([players[i].id, players[j].id].sort().join('|'));
+        }
+      }
+      const actualPairs = new Set(
+        regular.map((m) => [m.p1Id, m.p2Id!].sort().join('|')),
+      );
+      expect(actualPairs).toEqual(expectedPairs);
+      expect(regular.length).toBe(expectedPairs.size);
+
+      // No player appears twice within a round (as either side or the bye).
+      const byRound = new Map<number, string[]>();
+      matches.forEach((m) => {
+        const ids = byRound.get(m.round) ?? [];
+        ids.push(m.p1Id);
+        if (m.p2Id) ids.push(m.p2Id);
+        byRound.set(m.round, ids);
+      });
+      byRound.forEach((ids) => {
+        expect(new Set(ids).size).toBe(ids.length);
+      });
+
+      if (n % 2 === 1) {
+        const byeCounts: Record<string, number> = {};
+        matches
+          .filter((m) => m.isBye)
+          .forEach((m) => {
+            byeCounts[m.p1Id] = (byeCounts[m.p1Id] || 0) + 1;
+          });
+        players.forEach((p) => expect(byeCounts[p.id]).toBe(1));
+      } else {
+        expect(matches.some((m) => m.isBye)).toBe(false);
+      }
+    },
+  );
+});
+
+describe('computeStandings league mode', () => {
+  it('sorts by points, then game differential, then game win %', () => {
+    // p1 beats p3 2-0, p2 beats p3 2-1 — p1 and p2 tied on points (3 each
+    // from this match), p3 has 0. Tiebreak between p1/p2 is gameDiff.
+    const players = makePlayers(3);
+    const matches: SwissMatch[] = [
+      {
+        p1Id: 'p1',
+        p2Id: 'p3',
+        round: 1,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+      {
+        p1Id: 'p2',
+        p2Id: 'p3',
+        round: 1,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 1,
+      },
+    ];
+    const standings = computeStandings(players, matches, 'league');
+    expect(standings[0].id).toBe('p1');
+    expect(standings[1].id).toBe('p2');
+    expect(standings[0].gameDiff).toBe(2);
+    expect(standings[1].gameDiff).toBe(1);
+    expect(standings[2].id).toBe('p3');
+  });
+
+  it('defaults to swiss ordering (omw-based) with no mode argument', () => {
+    const players = makePlayers(3);
+    const matches: SwissMatch[] = [
+      {
+        p1Id: 'p1',
+        p2Id: 'p2',
+        round: 1,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+    ];
+    const withDefault = computeStandings(players, matches);
+    const withSwiss = computeStandings(players, matches, 'swiss');
+    expect(withDefault.map((r) => r.id)).toEqual(withSwiss.map((r) => r.id));
+  });
+});
+
+describe('applyGameWin', () => {
+  it('decides the match once a side reaches 2 game wins, straight games', () => {
+    const match: SwissMatch = {
+      p1Id: 'p1',
+      p2Id: 'p2',
+      round: 1,
+      result: null,
+      p1Games: 0,
+      p2Games: 0,
+    };
+    let patch = applyGameWin(match, 'p1');
+    expect(patch).toEqual({ p1Games: 1, p2Games: 0, result: null });
+    patch = applyGameWin({ ...match, ...patch }, 'p1');
+    expect(patch).toEqual({ p1Games: 2, p2Games: 0, result: 'p1' });
+  });
+
+  it('decides the match after a decider game', () => {
+    let match: SwissMatch = {
+      p1Id: 'p1',
+      p2Id: 'p2',
+      round: 1,
+      result: null,
+      p1Games: 0,
+      p2Games: 0,
+    };
+    match = { ...match, ...applyGameWin(match, 'p1') };
+    match = { ...match, ...applyGameWin(match, 'p2') };
+    expect(match).toMatchObject({ p1Games: 1, p2Games: 1, result: null });
+    const final = applyGameWin(match, 'p2');
+    expect(final).toEqual({ p1Games: 1, p2Games: 2, result: 'p2' });
+  });
+});
+
+describe('dropPlayer', () => {
+  it('forfeits pending current- and future-round matches, leaves the rest untouched', () => {
+    const players = makePlayers(4);
+    const matches: SwissMatch[] = [
+      // Already decided — untouched even though it involves p1.
+      {
+        p1Id: 'p1',
+        p2Id: 'p2',
+        round: 1,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+      // A bye — untouched.
+      { p1Id: 'p3', round: 1, isBye: true },
+      // Pending match in a future round involving the dropped player.
+      {
+        p1Id: 'p1',
+        p2Id: 'p3',
+        round: 2,
+        result: null,
+        p1Games: 0,
+        p2Games: 0,
+      },
+      // Pending match not involving the dropped player — untouched.
+      {
+        p1Id: 'p2',
+        p2Id: 'p4',
+        round: 2,
+        result: null,
+        p1Games: 0,
+        p2Games: 0,
+      },
+    ];
+    const { players: nextPlayers, matches: nextMatches } = dropPlayer(
+      players,
+      matches,
+      'p1',
+    );
+
+    expect(nextPlayers.find((p) => p.id === 'p1')?.dropped).toBe(true);
+    expect(nextMatches[0]).toEqual(matches[0]);
+    expect(nextMatches[1]).toEqual(matches[1]);
+    expect(nextMatches[2]).toMatchObject({
+      result: 'p2',
+      p1Games: 0,
+      p2Games: 2,
+      forfeited: true,
+    });
+    expect(nextMatches[3]).toEqual(matches[3]);
+  });
+});
+
+describe('matchesThroughRound', () => {
+  it('drops byes scheduled for rounds not yet reached, keeps everything else', () => {
+    const matches: SwissMatch[] = [
+      { p1Id: 'p1', round: 1, isBye: true },
+      { p1Id: 'p2', round: 2, isBye: true },
+      {
+        p1Id: 'p3',
+        p2Id: 'p4',
+        round: 1,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+      {
+        p1Id: 'p3',
+        p2Id: 'p5',
+        round: 2,
+        result: null,
+        p1Games: 0,
+        p2Games: 0,
+      },
+    ];
+    const visible = matchesThroughRound(matches, 1);
+    expect(visible).toEqual([matches[0], matches[2], matches[3]]);
+  });
+
+  it('keeps a forfeited match regardless of round, since a drop should score immediately', () => {
+    const matches: SwissMatch[] = [
+      {
+        p1Id: 'p1',
+        p2Id: 'p2',
+        round: 4,
+        result: 'p2',
+        p1Games: 0,
+        p2Games: 2,
+        forfeited: true,
+      },
+    ];
+    expect(matchesThroughRound(matches, 1)).toEqual(matches);
+  });
+
+  // Regression test: generateRoundRobinSchedule front-loads every round's
+  // matches (including future byes) the moment the league starts. Without
+  // filtering through matchesThroughRound first, computeStandings counted
+  // every player's bye immediately — win #1 for everyone before a single
+  // game was played.
+  it('prevents a round-robin schedule from crediting future byes to standings', () => {
+    const players = makePlayers(5);
+    const { matches } = generateRoundRobinSchedule(players);
+
+    const round1Visible = matchesThroughRound(matches, 1);
+    const standings = computeStandings(players, round1Visible, 'league');
+
+    // Nobody has played a match yet, so only the round-1 bye recipient
+    // should have any points; everyone else must be at zero.
+    const withPoints = standings.filter((s) => s.points > 0);
+    expect(withPoints.length).toBeLessThanOrEqual(1);
+  });
 });

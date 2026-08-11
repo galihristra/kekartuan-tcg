@@ -26,6 +26,8 @@ export interface SwissMatch {
   p1Games?: number;
   p2Games?: number;
   isBye?: boolean;
+  /** Set when `result` was decided by a drop rather than being played out. */
+  forfeited?: boolean;
 }
 
 /** Result of a match from one player's point of view. */
@@ -53,6 +55,8 @@ export interface StandingRow {
   gw: number;
   omw: number;
   ogw: number;
+  /** Games won minus games lost. League's primary tiebreak; harmless for Swiss. */
+  gameDiff: number;
   opponents: OpponentBreakdown[];
   /** Rounds the player sat out with a bye (counted as a win, no opponent). */
   byeRounds: number[];
@@ -161,9 +165,12 @@ interface PlayerStat {
   byeRounds: number[];
 }
 
+export type StandingsMode = 'swiss' | 'league';
+
 function computeStandings(
   players: Player[],
   matches: SwissMatch[],
+  mode: StandingsMode = 'swiss',
 ): StandingRow[] {
   const stats: Record<string, PlayerStat> = {};
   players.forEach((p) => {
@@ -257,6 +264,7 @@ function computeStandings(
       gw: gw(p.id),
       omw,
       ogw,
+      gameDiff: s.gamesWon - (s.gamesPlayed - s.gamesWon),
       opponents: opp.map((o) => ({
         ...o,
         mw: mw(o.id),
@@ -267,8 +275,10 @@ function computeStandings(
   });
 
   rows.sort(
-    (a, b) =>
-      b.points - a.points || b.omw - a.omw || b.gw - a.gw || b.ogw - a.ogw,
+    mode === 'league'
+      ? (a, b) => b.points - a.points || b.gameDiff - a.gameDiff || b.gw - a.gw
+      : (a, b) =>
+          b.points - a.points || b.omw - a.omw || b.gw - a.gw || b.ogw - a.ogw,
   );
   return rows;
 }
@@ -360,6 +370,117 @@ function generateSwissPairings(
   }
 
   return { pairings, byePlayerId: byePlayer ? byePlayer.id : null };
+}
+
+// ===================== League (round-robin) =====================
+
+/**
+ * Full round-robin schedule for every active player, generated once up
+ * front (unlike Swiss, this doesn't depend on results as rounds are
+ * played). Uses the standard circle/polygon method: fix one slot, rotate
+ * the rest by one position each round. An odd player count is padded with
+ * a `null` "ghost" opponent, which rotates through every real slot so byes
+ * land on a different player each round.
+ */
+function generateRoundRobinSchedule(players: Player[]): {
+  matches: SwissMatch[];
+  roundCount: number;
+} {
+  const active = shuffle(players.filter((p) => !p.dropped));
+  const arr: (string | null)[] = active.map((p) => p.id);
+  if (arr.length % 2 === 1) arr.push(null);
+  const n = arr.length;
+  if (n < 2) return { matches: [], roundCount: 0 };
+  const roundCount = n - 1;
+  const half = n / 2;
+
+  const matches: SwissMatch[] = [];
+  const cur = [...arr];
+  for (let round = 1; round <= roundCount; round++) {
+    for (let i = 0; i < half; i++) {
+      const a = cur[i];
+      const b = cur[n - 1 - i];
+      if (a === null || b === null) {
+        const byeId = (a ?? b) as string;
+        matches.push({ p1Id: byeId, round, isBye: true });
+      } else {
+        matches.push({
+          p1Id: a,
+          p2Id: b,
+          round,
+          result: null,
+          p1Games: 0,
+          p2Games: 0,
+        });
+      }
+    }
+    // Rotate everything but slot 0 by one position.
+    const fixed = cur[0];
+    const rest = cur.slice(1);
+    rest.unshift(rest.pop()!);
+    cur.splice(0, cur.length, fixed, ...rest);
+  }
+
+  return { matches, roundCount };
+}
+
+/** Records one game of a best-of-3 league match, auto-deciding the match once either side reaches 2 game wins. */
+function applyGameWin(
+  match: SwissMatch,
+  winner: 'p1' | 'p2',
+): Partial<SwissMatch> {
+  const p1Games = (match.p1Games ?? 0) + (winner === 'p1' ? 1 : 0);
+  const p2Games = (match.p2Games ?? 0) + (winner === 'p2' ? 1 : 0);
+  const result: MatchResult | null =
+    p1Games >= 2 ? 'p1' : p2Games >= 2 ? 'p2' : null;
+  return { p1Games, p2Games, result };
+}
+
+/**
+ * Marks a player dropped and forfeits every not-yet-decided match of
+ * theirs — for a league this reaches into future rounds too, since the
+ * whole schedule already exists as rows; for Swiss it only ever touches the
+ * current round's pending match, since later rounds aren't generated yet
+ * (the pairer already excludes dropped players from those).
+ */
+function dropPlayer(
+  players: Player[],
+  matches: SwissMatch[],
+  playerId: string,
+): { players: Player[]; matches: SwissMatch[] } {
+  const nextPlayers = players.map((p) =>
+    p.id === playerId ? { ...p, dropped: true } : p,
+  );
+  const nextMatches = matches.map((m) => {
+    if (m.isBye || m.result) return m;
+    if (m.p1Id !== playerId && m.p2Id !== playerId) return m;
+    if (!m.p2Id) return m;
+    const winner: MatchResult = m.p1Id === playerId ? 'p2' : 'p1';
+    return {
+      ...m,
+      result: winner,
+      p1Games: winner === 'p1' ? 2 : 0,
+      p2Games: winner === 'p2' ? 2 : 0,
+      forfeited: true,
+    };
+  });
+  return { players: nextPlayers, matches: nextMatches };
+}
+
+/**
+ * Matches that have actually happened by `round`. A league's schedule is
+ * generated for every round up front, including byes for rounds that
+ * haven't been reached yet — and a bye counts as a win the moment it's in
+ * the array (unlike a regular match, which is naturally gated on having a
+ * `result`), so an unreached bye must be filtered out before computing
+ * standings or it scores early. Decided matches (played or forfeited) keep
+ * counting regardless of round, since a drop should score immediately.
+ */
+function matchesThroughRound(
+  matches: SwissMatch[],
+  round: number,
+): SwissMatch[] {
+  return matches.filter((m) => !m.isBye || m.round <= round);
 }
 
 // ===================== Single elimination =====================
@@ -691,6 +812,10 @@ function reportDoubleEliminationResult(
 export {
   computeStandings,
   generateSwissPairings,
+  generateRoundRobinSchedule,
+  applyGameWin,
+  dropPlayer,
+  matchesThroughRound,
   generateSeedOrder,
   createSingleEliminationBracket,
   reportSingleEliminationResult,

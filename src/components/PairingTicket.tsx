@@ -1,32 +1,6 @@
 import { useState } from 'react';
 import type { Player, SwissMatch, MatchResult } from '../engine/tournament';
-import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
-
-function DeckSprites({ player }: { player: Player }) {
-  const deck1 = getPokemon(player.deckPokemon1);
-  const deck2 = getPokemon(player.deckPokemon2);
-  if (!deck1 && !deck2) return null;
-  return (
-    <>
-      {deck1 && (
-        <img
-          className="tk-deck-sprite-mini"
-          src={pokemonSpriteUrl(deck1)}
-          alt={deck1.name}
-          loading="lazy"
-        />
-      )}
-      {deck2 && (
-        <img
-          className="tk-deck-sprite-mini"
-          src={pokemonSpriteUrl(deck2)}
-          alt={deck2.name}
-          loading="lazy"
-        />
-      )}
-    </>
-  );
-}
+import DeckSprites from './DeckSprites';
 
 interface GameToggleProps {
   close: boolean;
@@ -121,15 +95,17 @@ export default function PairingTicket({
         {match.result === 'p1' && (
           <span className="tk-stamp win">
             {p1.name} won {match.p1Games}–{match.p2Games}
+            {match.forfeited && ' (forfeit)'}
           </span>
         )}
         {match.result === 'p2' && (
           <span className="tk-stamp win">
             {p2.name} won {match.p2Games}–{match.p1Games}
+            {match.forfeited && ' (forfeit)'}
           </span>
         )}
         {match.result === 'draw' && <span className="tk-stamp draw">Draw</span>}
-        {decided && !readOnly && (
+        {decided && !readOnly && !match.forfeited && (
           <button
             className="tk-btn ghost tk-btn--sm"
             onClick={() => onReport({ result: null, p1Games: 0, p2Games: 0 })}

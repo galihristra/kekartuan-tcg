@@ -4,6 +4,7 @@ import type { EventStateApi } from '../hooks/useEventState';
 import { hasRegisteredLocally, registeredName } from '../lib/selfRegistration';
 import EventSidebar from '../components/EventSidebar';
 import SwissPanel from '../components/SwissPanel';
+import LeaguePanel from '../components/LeaguePanel';
 import SingleElimPanel from '../components/SingleElimPanel';
 import DoubleElimPanel from '../components/DoubleElimPanel';
 import DeckEditModal from '../components/DeckEditModal';
@@ -67,6 +68,8 @@ export default function CurrentEventPage({
         return ev.singleBracket != null;
       case 'double':
         return ev.doubleBracket != null;
+      case 'league':
+        return ev.round > 0;
     }
   })();
   const eventActive = !ev.eventFinished && eventStarted;
@@ -163,6 +166,7 @@ export default function CurrentEventPage({
           players={ev.players}
           onRenamePlayer={ev.renamePlayer}
           onRemovePlayer={ev.removePlayer}
+          onDropPlayer={ev.dropPlayer}
           onAddPlayer={ev.addPlayer}
           onEditDeck={setEditingDeckPlayerId}
           rosterLocked={ev.rosterLocked}
@@ -194,6 +198,28 @@ export default function CurrentEventPage({
               onNewEvent={ev.resetEvent}
               onReportSwiss={ev.reportSwiss}
               onSwapPlayers={ev.swapSwissPlayers}
+            />
+          )}
+
+          {ev.mode === 'league' && (
+            <LeaguePanel
+              isAdmin={isAdmin}
+              eventFinished={ev.eventFinished}
+              round={ev.round}
+              roundCount={ev.roundCount}
+              roundComplete={ev.roundComplete}
+              matches={ev.matches}
+              playerMap={ev.playerMap}
+              standings={ev.standings}
+              playersCount={ev.players.length}
+              onStartRound={ev.startRound}
+              onFinishEvent={ev.finishEvent}
+              onNewEvent={ev.resetEvent}
+              onReportGame={ev.reportLeagueGame}
+              onDraw={ev.reportLeagueDraw}
+              onEditMatch={(m) =>
+                ev.reportSwiss(m, { result: null, p1Games: 0, p2Games: 0 })
+              }
             />
           )}
 

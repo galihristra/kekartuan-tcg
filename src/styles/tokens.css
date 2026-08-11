@@ -702,11 +702,11 @@ a.tk-btn {
 }
 .tk-cancel-btn {
   margin-top: 14px;
-  color: var(--loss);
+  background-color: var(--loss) !important;
   border-color: var(--loss);
 }
 .tk-cancel-btn:hover {
-  background: rgba(193, 88, 74, 0.12);
+  opacity: 0.6;
 }
 .tk-btn-danger {
   font-family: 'Barlow Condensed', sans-serif;

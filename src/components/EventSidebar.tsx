@@ -21,6 +21,7 @@ interface EventSidebarProps {
   players: Player[];
   onRenamePlayer: (id: string, name: string) => void;
   onRemovePlayer: (id: string) => void;
+  onDropPlayer: (id: string) => void;
   onAddPlayer: (name: string) => void;
   onEditDeck: (id: string) => void;
   eventActive: boolean;
@@ -50,6 +51,7 @@ export default function EventSidebar({
   players,
   onRenamePlayer,
   onRemovePlayer,
+  onDropPlayer,
   onAddPlayer,
   onEditDeck,
   eventActive,
@@ -194,6 +196,7 @@ export default function EventSidebar({
                 disabled={!isAdmin}
                 onChange={(e) => onRenamePlayer(p.id, e.target.value)}
               />
+              {p.dropped && <span className="tk-hint">(dropped)</span>}
               {isAdmin && (
                 <button
                   className="tk-btn ghost tk-btn--sm"
@@ -205,6 +208,14 @@ export default function EventSidebar({
               {isAdmin && !rosterLocked && (
                 <button className="tk-x" onClick={() => onRemovePlayer(p.id)}>
                   ×
+                </button>
+              )}
+              {isAdmin && rosterLocked && !p.dropped && !eventFinished && (
+                <button
+                  className="tk-btn ghost tk-btn--sm"
+                  onClick={() => onDropPlayer(p.id)}
+                >
+                  Drop
                 </button>
               )}
             </div>

@@ -1,11 +1,36 @@
 import { useState } from 'react';
 import type { Player, StandingRow } from '../engine/tournament';
-import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
+import type { Mode } from '../lib/eventStore';
+import DeckSprites from './DeckSprites';
 import PlayerPerformanceModal from './PlayerPerformanceModal';
+
+interface TiebreakColumn {
+  key: string;
+  header: string;
+  cell: (r: StandingRow) => string;
+}
+
+const TIEBREAK_COLUMNS: Record<'swiss' | 'league', TiebreakColumn[]> = {
+  swiss: [
+    { key: 'omw', header: 'OMW%', cell: (r) => (r.omw * 100).toFixed(1) },
+    { key: 'gw', header: 'GW%', cell: (r) => (r.gw * 100).toFixed(1) },
+    { key: 'ogw', header: 'OGW%', cell: (r) => (r.ogw * 100).toFixed(1) },
+  ],
+  league: [
+    {
+      key: 'gameDiff',
+      header: 'Diff',
+      cell: (r) => (r.gameDiff > 0 ? `+${r.gameDiff}` : String(r.gameDiff)),
+    },
+    { key: 'gw', header: 'GW%', cell: (r) => (r.gw * 100).toFixed(1) },
+  ],
+};
 
 interface StandingsTableProps {
   rows: StandingRow[];
   playerMap: Record<string, Player>;
+  /** Which tiebreak columns to show. Non-league modes (single/double elim don't use this table) fall back to Swiss's columns. */
+  mode?: Mode;
   /** When provided, the performance modal offers an "Edit deck" button. */
   onEditDeck?: (playerId: string) => void;
 }
@@ -13,10 +38,12 @@ interface StandingsTableProps {
 export default function StandingsTable({
   rows,
   playerMap,
+  mode = 'swiss',
   onEditDeck,
 }: StandingsTableProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedRow = rows.find((r) => r.id === selectedId) ?? null;
+  const columns = TIEBREAK_COLUMNS[mode === 'league' ? 'league' : 'swiss'];
 
   return (
     <div className="tk-table-scroll">
@@ -27,16 +54,16 @@ export default function StandingsTable({
             <th>Player</th>
             <th>Pts</th>
             <th>W-D-L</th>
-            <th className="tk-col-tb">OMW%</th>
-            <th className="tk-col-tb">GW%</th>
-            <th className="tk-col-tb">OGW%</th>
+            {columns.map((c) => (
+              <th key={c.key} className="tk-col-tb">
+                {c.header}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => {
             const player = playerMap[r.id];
-            const deck1 = getPokemon(player?.deckPokemon1);
-            const deck2 = getPokemon(player?.deckPokemon2);
             return (
               <tr
                 key={r.id}
@@ -45,24 +72,7 @@ export default function StandingsTable({
               >
                 <td className="tk-num">{i + 1}</td>
                 <td>
-                  <span className="tk-deck-sprites">
-                    {deck1 && (
-                      <img
-                        className="tk-deck-sprite-mini"
-                        src={pokemonSpriteUrl(deck1)}
-                        alt={deck1.name}
-                        loading="lazy"
-                      />
-                    )}
-                    {deck2 && (
-                      <img
-                        className="tk-deck-sprite-mini"
-                        src={pokemonSpriteUrl(deck2)}
-                        alt={deck2.name}
-                        loading="lazy"
-                      />
-                    )}
-                  </span>
+                  <DeckSprites player={player} />
                   {r.name}
                   <span className="tk-standings-caret"> ›</span>
                 </td>
@@ -70,9 +80,11 @@ export default function StandingsTable({
                 <td className="tk-num">
                   {r.wins}-{r.draws}-{r.losses}
                 </td>
-                <td className="tk-num tk-col-tb">{(r.omw * 100).toFixed(1)}</td>
-                <td className="tk-num tk-col-tb">{(r.gw * 100).toFixed(1)}</td>
-                <td className="tk-num tk-col-tb">{(r.ogw * 100).toFixed(1)}</td>
+                {columns.map((c) => (
+                  <td key={c.key} className="tk-num tk-col-tb">
+                    {c.cell(r)}
+                  </td>
+                ))}
               </tr>
             );
           })}

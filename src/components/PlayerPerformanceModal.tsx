@@ -1,6 +1,6 @@
 import type { Player, StandingRow } from '../engine/tournament';
-import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
 import Modal from './Modal';
+import DeckSprites from './DeckSprites';
 
 interface PlayerPerformanceModalProps {
   onClose: () => void;
@@ -20,39 +20,6 @@ interface RoundEntry {
 }
 
 const RESULT_LABEL = { W: 'Win', D: 'Draw', L: 'Loss' } as const;
-
-function DeckSprites({
-  player,
-  size = 'mini',
-}: {
-  player: Player | undefined;
-  size?: 'mini' | 'xs';
-}) {
-  const deck1 = getPokemon(player?.deckPokemon1);
-  const deck2 = getPokemon(player?.deckPokemon2);
-  if (!deck1 && !deck2) return null;
-  const cls = `tk-deck-sprite-${size}`;
-  return (
-    <span className="tk-deck-sprites">
-      {deck1 && (
-        <img
-          className={cls}
-          src={pokemonSpriteUrl(deck1)}
-          alt={deck1.name}
-          loading="lazy"
-        />
-      )}
-      {deck2 && (
-        <img
-          className={cls}
-          src={pokemonSpriteUrl(deck2)}
-          alt={deck2.name}
-          loading="lazy"
-        />
-      )}
-    </span>
-  );
-}
 
 export default function PlayerPerformanceModal({
   onClose,
