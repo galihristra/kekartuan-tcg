@@ -28,8 +28,12 @@ export const EVENT_DESCRIPTION_MAX_LENGTH = 200;
  *  so participants can copy or open it in one tap. Optional; '' means unset. */
 export const EVENT_LOCATION_MAX_LENGTH = 200;
 
+/** Mirrors the `events_slug_check` constraint in supabase/schema.sql. */
+export const EVENT_SLUG_MAX_LENGTH = 80;
+
 export interface EventRecord {
   id: string;
+  slug: string;
   name: string;
   description: string;
   location: string;
@@ -38,6 +42,7 @@ export interface EventRecord {
 
 export interface ArchivedEventSummary {
   id: string;
+  slug: string;
   name: string;
   description: string;
   location: string;
@@ -123,6 +128,41 @@ export function defaultEventName(): string {
   return `Event ${new Date().toISOString().slice(0, 10)}`;
 }
 
+/** Turn an event name into a URL-safe slug, matching the shape the
+ *  `events_slug_check` constraint enforces. Returns '' if nothing survives
+ *  (a blank name, or one made entirely of punctuation) — callers fall back. */
+export function slugify(input: string): string {
+  return (
+    input
+      .normalize('NFKD')
+      // Strip the combining accents NFKD just split off, so "Café" → "cafe"
+      // rather than losing the letter entirely to the non-alphanumeric pass.
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .slice(0, EVENT_SLUG_MAX_LENGTH)
+      .replace(/^-+|-+$/g, '')
+  );
+}
+
+/** Thrown when the chosen URL is already taken by another event, so the slug
+ *  editor can say so instead of surfacing a raw unique-violation. */
+export class DuplicateSlugError extends Error {
+  constructor() {
+    super('That URL is already used by another event.');
+    this.name = 'DuplicateSlugError';
+  }
+}
+
+/** Thrown when a slug survives none of `slugify` (e.g. all punctuation), or
+ *  Postgres rejects it on the check constraint. */
+export class InvalidSlugError extends Error {
+  constructor() {
+    super('Use letters and numbers, separated by dashes.');
+    this.name = 'InvalidSlugError';
+  }
+}
+
 /** Fill in any fields missing from a persisted blob (forward-compatible with older rows). */
 function normalizeState(
   state: Partial<EventState> | null | undefined,
@@ -130,46 +170,62 @@ function normalizeState(
   return { ...emptyState(), ...(state ?? {}) };
 }
 
-/** Load the current active event, or null if there isn't one.
+/** Create a new active event in the organizer's chosen format.
  *
- *  Read-only on purpose: participants browse the app unauthenticated, and
- *  creating an event is an organizer-only write. Starting the first event is an
- *  explicit `createActiveEvent()` call from the UI. */
-export async function loadActiveEvent(): Promise<EventRecord | null> {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('id, name, description, location, state')
-    .eq('status', 'active')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
-  return {
-    id: data.id,
-    name: data.name,
-    description: data.description ?? '',
-    location: data.location ?? '',
-    state: normalizeState(data.state),
-  };
+ *  Never touches any other row: several events can run at once (e.g. a
+ *  multi-week league alongside a one-off side event). */
+export async function createEvent(input: {
+  name: string;
+  mode: Mode;
+}): Promise<EventRecord> {
+  const name = input.name.trim() || defaultEventName();
+  const state: EventState = { ...emptyState(), mode: input.mode };
+  const base = slugify(name) || slugify(defaultEventName());
+
+  // Two events can legitimately share a name (the archive already has "Deck
+  // training" twice), so let the unique index arbitrate: take the bare slug if
+  // it's free, else the next numbered one.
+  for (let attempt = 1; attempt <= 25; attempt++) {
+    const slug = attempt === 1 ? base : `${base}-${attempt}`;
+    const { data, error } = await supabase
+      .from(TABLE)
+      .insert({ name, slug, state, status: 'active' })
+      .select('id, slug, name, description, location, state')
+      .single();
+    if (!error) {
+      return {
+        id: data.id,
+        slug: data.slug,
+        name: data.name,
+        description: data.description ?? '',
+        location: data.location ?? '',
+        state: normalizeState(data.state),
+      };
+    }
+    if (error.code !== '23505') throw error;
+  }
+  throw new DuplicateSlugError();
 }
 
-export async function createActiveEvent(): Promise<EventRecord> {
-  const name = defaultEventName();
-  const state = emptyState();
-  const { data, error } = await supabase
+/** Change an event's URL. Deliberately separate from `saveEvent`'s debounced
+ *  autosave: this can fail on a collision, and a half-typed slug shouldn't be
+ *  written (or claimed) on every keystroke. */
+export async function updateEventSlug(
+  id: string,
+  slug: string,
+): Promise<string> {
+  const normalized = slugify(slug);
+  if (!normalized) throw new InvalidSlugError();
+  const { error } = await supabase
     .from(TABLE)
-    .insert({ name, state, status: 'active' })
-    .select('id, name, description, location, state')
-    .single();
-  if (error) throw error;
-  return {
-    id: data.id,
-    name: data.name,
-    description: data.description ?? '',
-    location: data.location ?? '',
-    state: normalizeState(data.state),
-  };
+    .update({ slug: normalized })
+    .eq('id', id);
+  if (error) {
+    if (error.code === '23505') throw new DuplicateSlugError();
+    if (error.code === '23514') throw new InvalidSlugError();
+    throw error;
+  }
+  return normalized;
 }
 
 /** The event's editable fields. Passed as an object rather than positionally —
@@ -194,29 +250,40 @@ export async function saveEvent(
   if (error) throw error;
 }
 
-/** Archive the current event and start a fresh active one; returns the new active event. */
-export async function archiveAndCreate(
-  currentId: string,
-): Promise<EventRecord> {
+/** Delete an event outright, for one created by mistake or as a test.
+ *
+ *  Only offered for an event that never started: archiving is the right move
+ *  once there are results worth keeping. Registrations and photo rows go with
+ *  it via `on delete cascade`. */
+export async function deleteEvent(id: string): Promise<void> {
+  const { error } = await supabase.from(TABLE).delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** Archive one event. Starting the next one is a separate, explicit action. */
+export async function archiveEvent(id: string): Promise<void> {
   const { error } = await supabase
     .from(TABLE)
     .update({ status: 'archived' })
-    .eq('id', currentId);
+    .eq('id', id);
   if (error) throw error;
-  return createActiveEvent();
 }
 
-export async function listArchivedEvents(): Promise<ArchivedEventSummary[]> {
+/** List every event currently running, for the organizer's dashboard. */
+export async function listActiveEvents(): Promise<ArchivedEventSummary[]> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, name, description, location, created_at, updated_at, state')
-    .eq('status', 'archived')
-    // Order by when the event was created, so editing an archived event
-    // (e.g. fixing a deck) doesn't reshuffle the list.
+    .select(
+      'id, slug, name, description, location, created_at, updated_at, state',
+    )
+    .eq('status', 'active')
+    // Ordered by creation, so working on one event doesn't reshuffle the list
+    // out from under an organizer running several at once.
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []).map((r) => ({
     id: r.id,
+    slug: r.slug,
     name: r.name,
     description: r.description ?? '',
     location: r.location ?? '',
@@ -226,14 +293,39 @@ export async function listArchivedEvents(): Promise<ArchivedEventSummary[]> {
   }));
 }
 
-/** Load one event by id (any status), for shareable `/event/:id` links. */
-export async function loadEventById(id: string): Promise<EventDetail | null> {
+export async function listArchivedEvents(): Promise<ArchivedEventSummary[]> {
   const { data, error } = await supabase
     .from(TABLE)
     .select(
-      'id, name, description, location, created_at, updated_at, state, status',
+      'id, slug, name, description, location, created_at, updated_at, state',
     )
-    .eq('id', id)
+    .eq('status', 'archived')
+    // Order by when the event was created, so editing an archived event
+    // (e.g. fixing a deck) doesn't reshuffle the list.
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    name: r.name,
+    description: r.description ?? '',
+    location: r.location ?? '',
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    state: normalizeState(r.state),
+  }));
+}
+
+async function loadEventWhere(
+  column: 'id' | 'slug',
+  value: string,
+): Promise<EventDetail | null> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(
+      'id, slug, name, description, location, created_at, updated_at, state, status',
+    )
+    .eq(column, value)
     .maybeSingle();
   // A malformed uuid is rejected by Postgres (22P02) rather than matching
   // nothing — treat it the same as "no such event".
@@ -244,6 +336,7 @@ export async function loadEventById(id: string): Promise<EventDetail | null> {
   if (!data) return null;
   return {
     id: data.id,
+    slug: data.slug,
     name: data.name,
     description: data.description ?? '',
     location: data.location ?? '',
@@ -252,6 +345,21 @@ export async function loadEventById(id: string): Promise<EventDetail | null> {
     state: normalizeState(data.state),
     status: data.status,
   };
+}
+
+/** Load one event by id (any status) — used once a page already knows the id. */
+export async function loadEventById(id: string): Promise<EventDetail | null> {
+  return loadEventWhere('id', id);
+}
+
+/** Resolve a `/event/:slugOrId` URL. Tries the slug first, then falls back to
+ *  the id so every uuid link shared before slugs existed still works. */
+export async function loadEventBySlugOrId(
+  slugOrId: string,
+): Promise<EventDetail | null> {
+  const bySlug = await loadEventWhere('slug', slugOrId);
+  if (bySlug) return bySlug;
+  return loadEventWhere('id', slugOrId);
 }
 
 export interface RegistrationInput {

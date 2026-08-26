@@ -1,28 +1,12 @@
 import { useEffect } from 'react';
-import {
-  Link,
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-} from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAdminSession } from './hooks/useAdminSession';
-import { useEventState } from './hooks/useEventState';
 import { useTheme } from './hooks/useTheme';
 import ThemeToggle from './components/ThemeToggle';
-import type { Mode } from './lib/eventStore';
 import AdminLogin from './components/AdminLogin';
-import CurrentEventPage from './pages/CurrentEventPage';
+import EventsDashboardPage from './pages/EventsDashboardPage';
 import PastEventsPage from './pages/PastEventsPage';
-import ArchivedEventPage from './pages/ArchivedEventPage';
-
-const MODE_TABS: [Mode, string][] = [
-  ['swiss', 'Swiss'],
-  ['league', 'League'],
-  // ['single', 'Single Elim'],
-  // ['double', 'Double Elim'],
-];
+import EventPage from './pages/EventPage';
 
 /** The router keeps the previous scroll position; start each page at the top. */
 function ScrollToTop() {
@@ -36,15 +20,13 @@ function ScrollToTop() {
 export default function App() {
   const { session, isAdmin } = useAdminSession();
   const { theme, toggleTheme } = useTheme();
-  const ev = useEventState();
-  const navigate = useNavigate();
   const { pathname } = useLocation();
 
   // The header lives above the routes, so it derives its active states from the
-  // URL rather than from a `view` flag.
-  const onCurrentEvent = pathname === '/';
-  const onArchive =
-    pathname.startsWith('/past-events') || pathname.startsWith('/event/');
+  // URL rather than from a `view` flag. `/event/:id` matches neither tab — it
+  // can be a running event or an archived one.
+  const onEvents = pathname === '/';
+  const onArchive = pathname.startsWith('/past-events');
 
   return (
     <div className="tk-root">
@@ -63,20 +45,9 @@ export default function App() {
           </div>
         </div>
         <div className="tk-headright">
-          <div className="tk-tabs">
-            {MODE_TABS.map(([k, label]) => (
-              <button
-                key={k}
-                className={`tk-tab ${onCurrentEvent && ev.mode === k ? 'active' : ''}`}
-                onClick={() => {
-                  ev.setMode(k);
-                  navigate('/');
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <Link className={`tk-btn ghost ${onEvents ? 'active' : ''}`} to="/">
+            Events
+          </Link>
           <Link
             className={`tk-btn ghost ${onArchive ? 'active' : ''}`}
             to="/past-events"
@@ -89,14 +60,11 @@ export default function App() {
       </div>
 
       <Routes>
-        <Route
-          path="/"
-          element={<CurrentEventPage ev={ev} isAdmin={isAdmin} />}
-        />
+        <Route path="/" element={<EventsDashboardPage isAdmin={isAdmin} />} />
         <Route path="/past-events" element={<PastEventsPage />} />
         <Route
           path="/event/:eventId"
-          element={<ArchivedEventPage isAdmin={isAdmin} />}
+          element={<EventPage isAdmin={isAdmin} />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

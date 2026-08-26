@@ -4,11 +4,23 @@ import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventStore';
 import type { Mode, Registration } from '../lib/eventStore';
 import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
 import EventLocation from './EventLocation';
+import EventSlug from './EventSlug';
 import PendingRegistrations from './PendingRegistrations';
+
+const MODE_LABELS: Record<Mode, string> = {
+  swiss: 'Swiss',
+  league: 'League',
+  single: 'Single Elim',
+  double: 'Double Elim',
+};
+
+const SELECTABLE_MODES: Mode[] = ['swiss', 'league'];
 
 interface EventSidebarProps {
   isAdmin: boolean;
   eventId: string;
+  eventSlug: string;
+  onSlugChange: (slug: string) => Promise<string>;
   registrationOpen: boolean;
   onAdmitRegistrations: (regs: Registration[]) => Promise<void>;
   eventName: string;
@@ -27,18 +39,24 @@ interface EventSidebarProps {
   eventActive: boolean;
   rosterLocked: boolean;
   mode: Mode;
+  modeLocked: boolean;
+  onModeChange: (mode: Mode) => void;
   roundsInput: string;
   onRoundsInputChange: (value: string) => void;
   roundsValid: boolean;
   recommendedRounds: number;
   round: number;
   eventFinished: boolean;
+  isEmpty: boolean;
   onCancelEventClick: () => void;
+  onDeleteEventClick: () => void;
 }
 
 export default function EventSidebar({
   isAdmin,
   eventId,
+  eventSlug,
+  onSlugChange,
   registrationOpen,
   onAdmitRegistrations,
   eventName,
@@ -57,13 +75,17 @@ export default function EventSidebar({
   eventActive,
   rosterLocked,
   mode,
+  modeLocked,
+  onModeChange,
   roundsInput,
   onRoundsInputChange,
   roundsValid,
   recommendedRounds,
   round,
   eventFinished,
+  isEmpty,
   onCancelEventClick,
+  onDeleteEventClick,
 }: EventSidebarProps) {
   const [newName, setNewName] = useState('');
   // Roster collapses (mobile only, via CSS) once the event is active so live
@@ -102,6 +124,31 @@ export default function EventSidebar({
         // A disabled input clips a long name with no way to focus or scroll
         // it, so non-admins get the name as selectable text instead.
         eventName && <div className="tk-eventname-readonly">{eventName}</div>
+      )}
+      {/* The link the organizer hands out — theirs to manage, so admin-only.
+          Everyone else already has it in the address bar. */}
+      {isAdmin && <EventSlug slug={eventSlug} onSave={onSlugChange} />}
+      {isAdmin && !modeLocked ? (
+        <div className="tk-rounds-setting">
+          <label htmlFor="tk-event-format">Format</label>
+          <select
+            id="tk-event-format"
+            value={mode}
+            onChange={(e) => onModeChange(e.target.value as Mode)}
+          >
+            {SELECTABLE_MODES.map((m) => (
+              <option key={m} value={m}>
+                {MODE_LABELS[m]}
+              </option>
+            ))}
+          </select>
+          <span className="tk-hint">locks once players are added</span>
+        </div>
+      ) : (
+        // Shown to everyone: participants should see what they signed up for.
+        <div className="tk-eventformat-readonly tk-hint">
+          Format: {MODE_LABELS[mode]}
+        </div>
       )}
       {/* Above the description: it's the one detail people act on. */}
       <EventLocation
@@ -265,12 +312,14 @@ export default function EventSidebar({
             </span>
           </div>
         )}
-        {isAdmin && round > 0 && !eventFinished && (
+        {/* An event that never started has nothing worth archiving, so it's
+            thrown away rather than filed under Past events as "cancelled". */}
+        {isAdmin && !eventFinished && (
           <button
             className="tk-btn ghost tk-cancel-btn"
-            onClick={onCancelEventClick}
+            onClick={isEmpty ? onDeleteEventClick : onCancelEventClick}
           >
-            Cancel event
+            {isEmpty ? 'Delete event' : 'Cancel event'}
           </button>
         )}
       </div>

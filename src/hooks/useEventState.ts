@@ -18,16 +18,17 @@ import type {
   DoubleEliminationBracket,
 } from '../engine/tournament';
 import {
-  loadActiveEvent,
-  createActiveEvent,
+  loadEventById,
   saveEvent,
-  archiveAndCreate,
+  archiveEvent,
+  deleteEvent,
+  updateEventSlug,
   setRegistrationStatus,
 } from '../lib/eventStore';
 import type {
   Mode,
   EventState,
-  EventRecord,
+  EventDetail,
   Registration,
 } from '../lib/eventStore';
 import {
@@ -42,8 +43,16 @@ const newPlayerId = () => `p-${Math.random().toString(36).slice(2, 9)}`;
 /** Everything `useEventState` exposes — passed down to the current-event page. */
 export type EventStateApi = ReturnType<typeof useEventState>;
 
-/** Owns the active event's data, persistence (load/autosave/archive), and all mutating actions. */
-export function useEventState() {
+interface EventStateOptions {
+  /** Called when this event is no longer active — archived from another tab,
+   *  device, or the dashboard — so the page can switch to the archive view. */
+  onBecameInactive?: () => void;
+}
+
+/** Owns one event's data, persistence (load/autosave/archive), and all mutating actions.
+ *
+ *  Only call this with an id already known to be an active event. */
+export function useEventState(eventId: string, opts?: EventStateOptions) {
   const [players, setPlayers] = useState<Player[]>([]);
   const [mode, setMode] = useState<Mode>('swiss');
 
@@ -57,7 +66,7 @@ export function useEventState() {
   const [doubleBracket, setDoubleBracket] =
     useState<DoubleEliminationBracket | null>(null);
 
-  const [eventId, setEventId] = useState<string | null>(null);
+  const [eventSlug, setEventSlug] = useState('');
   const [eventName, setEventName] = useState('');
   const [eventDescription, setEventDescription] = useState('');
   const [eventLocation, setEventLocation] = useState('');
@@ -65,13 +74,9 @@ export function useEventState() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const skipSaveRef = useRef(true);
-  // Mirrors eventId so the refresh listener below can compare against the
-  // current event without re-subscribing on every change.
-  const eventIdRef = useRef<string | null>(null);
 
-  const applyRecord = useCallback((rec: EventRecord) => {
-    eventIdRef.current = rec.id;
-    setEventId(rec.id);
+  const applyRecord = useCallback((rec: EventDetail) => {
+    setEventSlug(rec.slug);
     setEventName(rec.name);
     setEventDescription(rec.description);
     setEventLocation(rec.location);
@@ -86,16 +91,15 @@ export function useEventState() {
     setDoubleBracket(s.doubleBracket);
   }, []);
 
-  // Load the active event on startup. Read-only — an event is only ever created
-  // by an explicit organizer action, so a participant can browse with no event
-  // running instead of tripping over an authenticated-only insert.
   useEffect(() => {
     let cancelled = false;
-    loadActiveEvent()
+    setLoading(true);
+    loadEventById(eventId)
       .then((rec) => {
         if (cancelled) return;
         skipSaveRef.current = true;
         if (rec) applyRecord(rec);
+        else setLoadError('Event not found.');
         setLoading(false);
       })
       .catch((e) => {
@@ -107,40 +111,38 @@ export function useEventState() {
     return () => {
       cancelled = true;
     };
-  }, [applyRecord]);
+  }, [eventId, applyRecord]);
 
-  // The active event is loaded once, but it can be replaced while a tab sits
-  // open — the organizer finishes or cancels an event and starts the next one.
-  // Phones keep tabs alive for weeks and restore them without refetching, so
-  // without this a participant keeps seeing the finished event (including a
-  // stale "you're registered") and can never join its replacement.
+  // This event can be archived elsewhere (another tab, another device, the
+  // dashboard) while a tab sits open. Phones keep tabs alive for weeks and
+  // restore them without refetching, so without this a participant keeps
+  // seeing a finished event, including a stale "you're registered".
   //
   // Deliberately not polling: this fires when the tab is actually looked at,
   // which is the moment it matters and keeps the app's manual-refresh model.
+  // Never re-applies the record — that would overwrite the organizer's
+  // in-flight edits with an older server copy.
+  const onBecameInactive = opts?.onBecameInactive;
   useEffect(() => {
-    const refreshIfEventChanged = () => {
+    const checkStillActive = () => {
       if (document.visibilityState !== 'visible') return;
-      loadActiveEvent()
+      loadEventById(eventId)
         .then((rec) => {
-          // Only adopt a *different* event. Re-applying the current one would
-          // overwrite the organizer's in-flight edits with an older server copy.
-          if (!rec || rec.id === eventIdRef.current) return;
-          skipSaveRef.current = true;
-          applyRecord(rec);
+          if (!rec || rec.status !== 'active') onBecameInactive?.();
         })
-        .catch((e) => console.error('Failed to refresh active event', e));
+        .catch((e) => console.error('Failed to refresh event', e));
     };
-    document.addEventListener('visibilitychange', refreshIfEventChanged);
-    window.addEventListener('focus', refreshIfEventChanged);
+    document.addEventListener('visibilitychange', checkStillActive);
+    window.addEventListener('focus', checkStillActive);
     return () => {
-      document.removeEventListener('visibilitychange', refreshIfEventChanged);
-      window.removeEventListener('focus', refreshIfEventChanged);
+      document.removeEventListener('visibilitychange', checkStillActive);
+      window.removeEventListener('focus', checkStillActive);
     };
-  }, [applyRecord]);
+  }, [eventId, onBecameInactive]);
 
   // Debounced auto-save whenever any persisted field changes.
   useEffect(() => {
-    if (loading || !eventId) return;
+    if (loading) return;
     if (skipSaveRef.current) {
       skipSaveRef.current = false;
       return;
@@ -204,11 +206,15 @@ export function useEventState() {
       : parseInt(roundsInput, 10);
   const roundsValid = mode === 'league' ? players.length >= 2 : roundCount >= 3;
   const rosterLocked = round > 0;
-  const hasEvent = eventId != null;
+  // Changing format mid-event would reinterpret an existing schedule under
+  // different rules, so it's only editable while the event is still empty.
+  const modeLocked = players.length > 0 || matches.length > 0 || round > 0;
+  // Nothing worth archiving yet, so this one can simply be thrown away.
+  const isEmpty = players.length === 0 && matches.length === 0 && round === 0;
   // Self-registration closes as soon as the event starts pairing. Kept in step
   // with the `public_register` RLS policy in supabase/schema.sql, which enforces
   // the same window server-side.
-  const registrationOpen = hasEvent && round === 0 && !eventFinished;
+  const registrationOpen = round === 0 && !eventFinished;
 
   const addPlayer = (name: string) => {
     const trimmed = name.trim();
@@ -278,7 +284,6 @@ export function useEventState() {
   /** Move pending registrations onto the roster. Safe to retry: registrations
    *  already admitted are skipped, so a half-finished run can't duplicate anyone. */
   const admitRegistrations = async (regs: Registration[]) => {
-    if (!eventId) return;
     const fresh = unadmittedRegistrations(players, regs);
     if (fresh.length === 0) return;
     const nextPlayers = admitIntoRoster(players, fresh, newPlayerId);
@@ -311,23 +316,22 @@ export function useEventState() {
     setPlayers(nextPlayers);
   };
 
+  /** Claim a new URL for this event. Throws `DuplicateSlugError` /
+   *  `InvalidSlugError` for the editor to show; the caller re-points the
+   *  browser at the new slug on success. */
+  const updateSlug = async (next: string) => {
+    const saved = await updateEventSlug(eventId, next);
+    setEventSlug(saved);
+    return saved;
+  };
+
   const finishEvent = () => setEventFinished(true);
-  /** Start the first event of the day (organizer-only; RLS rejects anon). */
-  const createEvent = async () => {
-    const rec = await createActiveEvent();
-    skipSaveRef.current = true;
-    applyRecord(rec);
-  };
-  const resetEvent = async () => {
-    if (!eventId) return;
-    try {
-      const rec = await archiveAndCreate(eventId);
-      skipSaveRef.current = true;
-      applyRecord(rec);
-    } catch (e) {
-      console.error('Failed to start new event', e);
-    }
-  };
+  /** Move this event to the archive. The caller navigates away afterwards. */
+  const archiveThisEvent = () => archiveEvent(eventId);
+
+  /** Discard an event that never got going, so a mistyped or test event
+   *  doesn't have to sit in the archive forever. */
+  const deleteThisEvent = () => deleteEvent(eventId);
 
   const reportSwiss = (targetMatch: SwissMatch, patch: Partial<SwissMatch>) => {
     setMatches((all) =>
@@ -423,7 +427,8 @@ export function useEventState() {
   return {
     // meta / persistence
     eventId,
-    hasEvent,
+    eventSlug,
+    updateSlug,
     eventName,
     setEventName,
     eventDescription,
@@ -449,6 +454,7 @@ export function useEventState() {
     // mode + rounds
     mode,
     setMode,
+    modeLocked,
     roundsInput,
     setRoundsInput,
     roundCount,
@@ -479,7 +485,8 @@ export function useEventState() {
     reportDouble,
 
     // lifecycle
-    createEvent,
-    resetEvent,
+    isEmpty,
+    archiveThisEvent,
+    deleteThisEvent,
   };
 }

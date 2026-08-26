@@ -1,25 +1,39 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { loadEventById } from '../lib/eventStore';
+import { useEventState } from '../hooks/useEventState';
+import { loadEventBySlugOrId } from '../lib/eventStore';
 import type { ArchivedEventSummary, EventDetail } from '../lib/eventStore';
 import ArchivedEventDetail from '../components/ArchivedEventDetail';
 import CopyButton from '../components/CopyButton';
+import CurrentEventPage from './CurrentEventPage';
 
-interface ArchivedEventPageProps {
-  isAdmin: boolean;
+/** One event at its own shareable URL: `/event/<slug>`, or the uuid links
+ *  shared before slugs existed. */
+export default function EventPage({ isAdmin }: { isAdmin: boolean }) {
+  const { eventId: slugOrId } = useParams<{ eventId: string }>();
+  if (!slugOrId) return <Navigate to="/" replace />;
+  // Keyed so switching between two events remounts rather than carrying the
+  // previous event's state into the next one.
+  return (
+    <EventPageInner key={slugOrId} slugOrId={slugOrId} isAdmin={isAdmin} />
+  );
 }
 
-/** One past event at its own shareable URL: `/event/<uuid>`. */
-export default function ArchivedEventPage({ isAdmin }: ArchivedEventPageProps) {
-  const { eventId } = useParams<{ eventId: string }>();
+function EventPageInner({
+  slugOrId,
+  isAdmin,
+}: {
+  slugOrId: string;
+  isAdmin: boolean;
+}) {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
-    if (!eventId) return;
     let cancelled = false;
     setLoading(true);
-    loadEventById(eventId)
+    loadEventBySlugOrId(slugOrId)
       .then((rec) => {
         if (cancelled) return;
         setEvent(rec);
@@ -34,7 +48,7 @@ export default function ArchivedEventPage({ isAdmin }: ArchivedEventPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [slugOrId, reloadNonce]);
 
   // An optimistic deck edit hands back the updated event; a failed write hands
   // back null, meaning "re-read the server's truth".
@@ -44,12 +58,16 @@ export default function ArchivedEventPage({ isAdmin }: ArchivedEventPageProps) {
         setEvent((cur) => (cur ? { ...cur, ...updated } : cur));
         return;
       }
-      if (!eventId) return;
-      loadEventById(eventId)
-        .then(setEvent)
-        .catch((e) => console.error('Failed to reload event', e));
+      setReloadNonce((n) => n + 1);
     },
-    [eventId],
+    [],
+  );
+
+  // The live view archived this event out from under itself — re-read so the
+  // page switches to the archive layout.
+  const handleBecameInactive = useCallback(
+    () => setReloadNonce((n) => n + 1),
+    [],
   );
 
   if (loading) {
@@ -73,9 +91,15 @@ export default function ArchivedEventPage({ isAdmin }: ArchivedEventPageProps) {
     );
   }
 
-  // The live event belongs on the main screen — the archive layout would label
-  // an unfinished event as cancelled.
-  if (event.status === 'active') return <Navigate to="/" replace />;
+  if (event.status === 'active') {
+    return (
+      <LiveEvent
+        eventId={event.id}
+        isAdmin={isAdmin}
+        onBecameInactive={handleBecameInactive}
+      />
+    );
+  }
 
   return (
     <div className="tk-panel">
@@ -95,4 +119,19 @@ export default function ArchivedEventPage({ isAdmin }: ArchivedEventPageProps) {
       />
     </div>
   );
+}
+
+/** Split out so `useEventState` is only ever called with an id already known
+ *  to be an active event. */
+function LiveEvent({
+  eventId,
+  isAdmin,
+  onBecameInactive,
+}: {
+  eventId: string;
+  isAdmin: boolean;
+  onBecameInactive: () => void;
+}) {
+  const ev = useEventState(eventId, { onBecameInactive });
+  return <CurrentEventPage ev={ev} isAdmin={isAdmin} />;
 }

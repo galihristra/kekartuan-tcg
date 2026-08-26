@@ -23,6 +23,49 @@ alter table public.events add column if not exists location text not null defaul
 alter table public.events drop constraint if exists events_location_check;
 alter table public.events add constraint events_location_check check (char_length(location) <= 200);
 
+-- Human-readable event URLs (/event/mini-league-event-september). Stored rather
+-- than derived from `name`: the name is a live-editable field, and a URL that
+-- followed it would break every link a participant already has the moment the
+-- organizer fixes a typo.
+alter table public.events add column if not exists slug text;
+
+-- Backfill rows that predate the column. Names are neither unique nor always
+-- present in real data, so equal names get a numeric suffix (oldest keeps the
+-- bare slug) and blank names fall back to their creation date.
+with slugged as (
+  select
+    id,
+    coalesce(
+      nullif(trim(both '-' from regexp_replace(lower(name), '[^a-z0-9]+', '-', 'g')), ''),
+      'event-' || to_char(created_at, 'YYYY-MM-DD')
+    ) as base,
+    row_number() over (
+      partition by coalesce(
+        nullif(trim(both '-' from regexp_replace(lower(name), '[^a-z0-9]+', '-', 'g')), ''),
+        'event-' || to_char(created_at, 'YYYY-MM-DD')
+      )
+      order by created_at
+    ) as n
+  from public.events
+  where slug is null
+)
+update public.events e
+set slug = case when s.n = 1 then s.base else s.base || '-' || s.n end
+from slugged s
+where e.id = s.id;
+
+alter table public.events alter column slug set not null;
+
+-- The app mirrors this shape when it generates a slug; the constraint is what
+-- actually guarantees it, since the slug editor is untrusted input.
+alter table public.events drop constraint if exists events_slug_check;
+alter table public.events add constraint events_slug_check
+  check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(slug) <= 80);
+
+-- Lookups go through the slug, and it's what keeps two events from claiming
+-- the same URL — the app relies on this raising 23505 rather than checking first.
+create unique index if not exists events_slug_idx on public.events (slug);
+
 -- Keep updated_at fresh on every write (used for "load latest active" and archive ordering).
 create or replace function public.set_updated_at()
 returns trigger language plpgsql as $$
