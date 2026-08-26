@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useScrollLock } from '../hooks/useScrollLock';
 import type { EventStateApi } from '../hooks/useEventState';
 import { hasRegisteredLocally, registeredName } from '../lib/selfRegistration';
@@ -20,43 +21,47 @@ export default function CurrentEventPage({
   ev,
   isAdmin,
 }: CurrentEventPageProps) {
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [confirming, setConfirming] = useState<'cancel' | 'delete' | null>(
+    null,
+  );
   const [showRegister, setShowRegister] = useState(false);
   // Which event this session just registered for. Tracked as an id rather than a
   // boolean so it doesn't carry over when the active event is replaced — a plain
   // flag would tell someone they're registered for an event they've never seen.
   const [registeredFor, setRegisteredFor] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [editingDeckPlayerId, setEditingDeckPlayerId] = useState<string | null>(
     null,
   );
   const editingDeckPlayer = editingDeckPlayerId
     ? (ev.playerMap[editingDeckPlayerId] ?? null)
     : null;
-  useScrollLock(showCancelConfirm);
+  const navigate = useNavigate();
+  useScrollLock(confirming !== null);
 
-  const confirmCancelEvent = async () => {
-    await ev.resetEvent();
-    setShowCancelConfirm(false);
+  /** Archiving doesn't start a replacement any more, so send the organizer to
+   *  the dashboard to pick what happens next. */
+  const archiveAndLeave = async () => {
+    await ev.archiveThisEvent();
+    navigate('/');
+  };
+
+  /** Follow the event to its new URL, so the address bar and any copy-link
+   *  action reflect the slug that was just claimed. */
+  const handleSlugChange = async (slug: string) => {
+    const saved = await ev.updateSlug(slug);
+    navigate(`/event/${saved}`, { replace: true });
+    return saved;
+  };
+
+  const confirmDiscard = async () => {
+    if (confirming === 'delete') await ev.deleteThisEvent();
+    else await ev.archiveThisEvent();
+    setConfirming(null);
+    navigate('/');
   };
 
   const alreadyRegistered =
-    ev.eventId != null &&
-    (registeredFor === ev.eventId || hasRegisteredLocally(ev.eventId));
-
-  const handleCreateEvent = async () => {
-    setCreating(true);
-    setCreateError(null);
-    try {
-      await ev.createEvent();
-    } catch (e) {
-      console.error('Failed to start event', e);
-      setCreateError("Couldn't start an event. Try again.");
-    } finally {
-      setCreating(false);
-    }
-  };
+    registeredFor === ev.eventId || hasRegisteredLocally(ev.eventId);
 
   // An event is "active" once it's running but not yet finished. On mobile this
   // flips the layout to lead with pairings/standings and collapses the roster.
@@ -83,34 +88,6 @@ export default function CurrentEventPage({
         <br />
         Check the values in <b>.env.local</b> and that the <b>events</b> table
         exists (run <b>supabase/schema.sql</b>).
-      </div>
-    );
-  }
-
-  // Nothing is running. Participants get told so plainly; the organizer gets the
-  // button that starts the day's event (creating one is an authenticated write,
-  // so it can't happen automatically on load any more).
-  if (!ev.hasEvent || !ev.eventId) {
-    return (
-      <div className="tk-empty">
-        No event running right now.
-        {isAdmin ? (
-          <div className="tk-noevent-actions">
-            <button
-              className="tk-btn"
-              disabled={creating}
-              onClick={() => void handleCreateEvent()}
-            >
-              {creating ? 'Starting…' : 'Start an event'}
-            </button>
-            {createError && <p className="tk-error tk-hint">{createError}</p>}
-          </div>
-        ) : (
-          <>
-            <br />
-            Check back soon, or ask the organizer.
-          </>
-        )}
       </div>
     );
   }
@@ -153,6 +130,8 @@ export default function CurrentEventPage({
         <EventSidebar
           isAdmin={isAdmin}
           eventId={ev.eventId}
+          eventSlug={ev.eventSlug}
+          onSlugChange={handleSlugChange}
           registrationOpen={ev.registrationOpen}
           onAdmitRegistrations={ev.admitRegistrations}
           eventActive={eventActive}
@@ -171,13 +150,17 @@ export default function CurrentEventPage({
           onEditDeck={setEditingDeckPlayerId}
           rosterLocked={ev.rosterLocked}
           mode={ev.mode}
+          modeLocked={ev.modeLocked}
+          onModeChange={ev.setMode}
           roundsInput={ev.roundsInput}
           onRoundsInputChange={ev.setRoundsInput}
           roundsValid={ev.roundsValid}
           recommendedRounds={ev.recommendedRounds}
           round={ev.round}
           eventFinished={ev.eventFinished}
-          onCancelEventClick={() => setShowCancelConfirm(true)}
+          isEmpty={ev.isEmpty}
+          onCancelEventClick={() => setConfirming('cancel')}
+          onDeleteEventClick={() => setConfirming('delete')}
         />
 
         <div>
@@ -195,7 +178,7 @@ export default function CurrentEventPage({
               roundsValid={ev.roundsValid}
               onStartRound={ev.startRound}
               onFinishEvent={ev.finishEvent}
-              onNewEvent={ev.resetEvent}
+              onNewEvent={archiveAndLeave}
               onReportSwiss={ev.reportSwiss}
               onSwapPlayers={ev.swapSwissPlayers}
             />
@@ -214,7 +197,7 @@ export default function CurrentEventPage({
               playersCount={ev.players.length}
               onStartRound={ev.startRound}
               onFinishEvent={ev.finishEvent}
-              onNewEvent={ev.resetEvent}
+              onNewEvent={archiveAndLeave}
               onReportGame={ev.reportLeagueGame}
               onDraw={ev.reportLeagueDraw}
               onEditMatch={(m) =>
@@ -247,26 +230,28 @@ export default function CurrentEventPage({
         </div>
       </div>
 
-      {showCancelConfirm && (
-        <div
-          className="tk-modal-backdrop"
-          onClick={() => setShowCancelConfirm(false)}
-        >
+      {confirming && (
+        <div className="tk-modal-backdrop" onClick={() => setConfirming(null)}>
           <div className="tk-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="tk-section-title">Cancel this event?</h3>
+            <h3 className="tk-section-title">
+              {confirming === 'delete'
+                ? 'Delete this event?'
+                : 'Cancel this event?'}
+            </h3>
             <p className="tk-hint">
-              "{ev.eventName}" will move to Past events and a new event will
-              start. This can't be undone.
+              {confirming === 'delete'
+                ? `"${ev.eventName || 'This event'}" never started, so it will be deleted outright along with any sign-ups. This can't be undone.`
+                : `"${ev.eventName}" will move to Past events. This can't be undone.`}
             </p>
             <div className="tk-modal-actions">
               <button
                 className="tk-btn ghost"
-                onClick={() => setShowCancelConfirm(false)}
+                onClick={() => setConfirming(null)}
               >
                 Keep event
               </button>
-              <button className="tk-btn-danger" onClick={confirmCancelEvent}>
-                Cancel event
+              <button className="tk-btn-danger" onClick={confirmDiscard}>
+                {confirming === 'delete' ? 'Delete event' : 'Cancel event'}
               </button>
             </div>
           </div>

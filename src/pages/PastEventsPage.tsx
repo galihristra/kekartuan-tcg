@@ -19,7 +19,7 @@ export default function PastEventsPage() {
       <div className="tk-roundbar">
         <div className="tk-roundlabel">Past events</div>
         <Link className="tk-btn ghost" to="/">
-          Back to current event
+          Back to events
         </Link>
       </div>
       {archived.length === 0 ? (
@@ -40,7 +40,7 @@ export default function PastEventsPage() {
               <Link
                 className="tk-archive-item"
                 key={ev.id}
-                to={`/event/${ev.id}`}
+                to={`/event/${ev.slug}`}
               >
                 <div className="tk-archive-name">{ev.name}</div>
                 <div className="tk-archive-meta">
