@@ -76,7 +76,16 @@ html[data-theme='light'] .tk-root {
 .tk-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 1rem;
+}
+.tk-logo-link {
+  display: block;
+  flex: none;
+  border-radius: 6px;
+}
+.tk-logo-link:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
 }
 .tk-logo {
   height: 52px;
@@ -96,6 +105,43 @@ html[data-theme='light'] .tk-root {
   color: var(--muted);
   font-size: 13px;
   margin-top: 2px;
+}
+/* Social handle under the tagline; the title block is uppercase, so the link
+   opts back out of that. */
+.tk-ig {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: none;
+  color: var(--muted);
+}
+.tk-ig:hover .tk-ig-handle {
+  text-decoration: underline;
+}
+.tk-ig svg {
+  width: 15px;
+  height: 15px;
+}
+/* Instagram's brand gradient. The solid pink is the fallback wherever
+   background-clip: text is unsupported — the icon carries the same sweep as an
+   SVG gradient. */
+.tk-ig-handle {
+  font-weight: 500;
+  color: #e1306c;
+}
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .tk-ig-handle {
+    background: linear-gradient(45deg, #f58529, #ee2a7b 55%, #6228d7);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }
 .tk-tabs {
   display: flex;
