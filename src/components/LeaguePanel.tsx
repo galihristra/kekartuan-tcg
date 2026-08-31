@@ -75,7 +75,7 @@ export default function LeaguePanel({
           )}
         </div>
         <div className="tk-roundbar-actions">
-          {roundMatches.length > 0 && (
+          {isAdmin && roundMatches.length > 0 && (
             <CopyButton
               value={formatRoundPairings(round, matches, playerMap)}
               label="pairings"
