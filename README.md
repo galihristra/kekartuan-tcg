@@ -113,6 +113,7 @@ src/
     eventStore.ts               # load / save / archive events, registrations, photos
     registrationAdmission.ts    # pure registration → roster logic (unit-tested)
     selfRegistration.ts         # localStorage "already registered" flag
+    pairingsText.ts             # round pairings as shareable plain text (unit-tested)
     auth.ts                     # sign in / out, session helpers
   App.tsx                       # wires engine to UI + persistence + auth-gated editing
   styles/tokens.css

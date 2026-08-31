@@ -1,5 +1,7 @@
 import type { Player, StandingRow, SwissMatch } from '../engine/tournament';
 import PairingTicket from './PairingTicket';
+import CopyButton from './CopyButton';
+import { formatRoundPairings } from '../lib/pairingsText';
 import StandingsTable from './StandingsTable';
 
 interface SwissPanelProps {
@@ -93,53 +95,61 @@ export default function SwissPanel({
             </>
           )}
         </div>
-        {(() => {
-          if (round === 0) {
+        <div className="tk-roundbar-actions">
+          {roundMatches.length > 0 && (
+            <CopyButton
+              value={formatRoundPairings(round, matches, playerMap)}
+              label="pairings"
+            />
+          )}
+          {(() => {
+            if (round === 0) {
+              if (!isAdmin)
+                return (
+                  <span className="tk-hint">
+                    Waiting for organizer to start the event
+                  </span>
+                );
+              return (
+                <button
+                  className="tk-btn"
+                  disabled={playersCount < 2 || !roundsValid}
+                  onClick={onStartRound}
+                >
+                  Start Round 1
+                </button>
+              );
+            }
+            if (!roundComplete)
+              return (
+                <span className="tk-hint">Report all results to continue</span>
+              );
+            if (round < roundCount) {
+              if (!isAdmin)
+                return (
+                  <span className="tk-hint">
+                    Waiting for organizer to start round {round + 1}
+                  </span>
+                );
+              return (
+                <button className="tk-btn" onClick={onStartRound}>
+                  Start Round {round + 1}
+                </button>
+              );
+            }
             if (!isAdmin)
               return (
                 <span className="tk-hint">
-                  Waiting for organizer to start the event
+                  Waiting for organizer to finish the event
                 </span>
               );
             return (
-              <button
-                className="tk-btn"
-                disabled={playersCount < 2 || !roundsValid}
-                onClick={onStartRound}
-              >
-                Start Round 1
+              <button className="tk-btn" onClick={onFinishEvent}>
+                Finish event
               </button>
             );
-          }
-          if (!roundComplete)
-            return (
-              <span className="tk-hint">Report all results to continue</span>
-            );
-          if (round < roundCount) {
-            if (!isAdmin)
-              return (
-                <span className="tk-hint">
-                  Waiting for organizer to start round {round + 1}
-                </span>
-              );
-            return (
-              <button className="tk-btn" onClick={onStartRound}>
-                Start Round {round + 1}
-              </button>
-            );
-          }
-          if (!isAdmin)
-            return (
-              <span className="tk-hint">
-                Waiting for organizer to finish the event
-              </span>
-            );
-          return (
-            <button className="tk-btn" onClick={onFinishEvent}>
-              Finish event
-            </button>
-          );
-        })()}
+          })()}
+        </div>
       </div>
 
       {round === 0 && (
