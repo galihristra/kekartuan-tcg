@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { signInWithPassword, signOut } from '../lib/auth';
 import { Session } from '@supabase/supabase-js';
@@ -16,7 +16,17 @@ export default function AdminLogin({ isAdmin, userSession }: AdminLoginProps) {
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  useScrollLock(open);
+  // A successful sign-in flips `isAdmin` from the parent's auth listener, and
+  // this component then renders the signed-in badge instead of the dialog. The
+  // lock has to fall with the dialog rather than with `open`, which nothing is
+  // left on screen to clear.
+  const dialogOpen = open && !isAdmin;
+  useScrollLock(dialogOpen);
+
+  // Signing out again shouldn't reopen the form the sign-in left behind.
+  useEffect(() => {
+    if (isAdmin) setOpen(false);
+  }, [isAdmin]);
 
   const close = () => {
     setOpen(false);
@@ -55,7 +65,7 @@ export default function AdminLogin({ isAdmin, userSession }: AdminLoginProps) {
       <button className="tk-btn ghost" onClick={() => setOpen(true)}>
         Organizer sign in
       </button>
-      {open && (
+      {dialogOpen && (
         <div className="tk-modal-backdrop" onClick={close}>
           <div className="tk-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="tk-section-title">Organizer sign in</h3>
