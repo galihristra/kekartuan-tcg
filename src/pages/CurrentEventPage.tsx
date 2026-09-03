@@ -187,6 +187,7 @@ export default function CurrentEventPage({
               standings={ev.standings}
               playersCount={ev.players.length}
               roundsValid={ev.roundsValid}
+              eventName={ev.eventName}
               onStartRound={ev.startRound}
               onFinishEvent={ev.finishEvent}
               onNewEvent={archiveAndLeave}
@@ -206,6 +207,7 @@ export default function CurrentEventPage({
               playerMap={ev.playerMap}
               standings={ev.standings}
               playersCount={ev.players.length}
+              eventName={ev.eventName}
               onStartRound={ev.startRound}
               onFinishEvent={ev.finishEvent}
               onNewEvent={archiveAndLeave}

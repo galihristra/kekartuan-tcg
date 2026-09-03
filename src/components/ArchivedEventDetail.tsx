@@ -173,6 +173,7 @@ export default function ArchivedEventDetail({
           event.state.players.map((p) => [p.id, p]),
         )}
         mode={event.state.mode}
+        eventName={event.name}
         onEditDeck={isAdmin ? setEditingDeckPlayerId : undefined}
       />
       <h3 className="tk-section-title">Photos</h3>

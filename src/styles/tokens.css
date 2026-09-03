@@ -1329,6 +1329,28 @@ a.tk-btn {
 .tk-perf-title {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
+}
+/* The sprites stay to the left of both lines; the event name is a kicker
+   above the player's name, so a screenshot of this modal carries the event
+   it belongs to. */
+.tk-perf-title-text {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.tk-perf-title-event {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.tk-perf-title-main {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .tk-perf-stats {
   display: grid;

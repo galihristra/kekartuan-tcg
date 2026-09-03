@@ -13,6 +13,7 @@ interface SwissPanelProps {
   standings: StandingRow[];
   playersCount: number;
   roundsValid: boolean;
+  eventName: string;
   onStartRound: () => void;
   onFinishEvent: () => void;
   onNewEvent: () => void;
@@ -52,6 +53,7 @@ export default function SwissPanel({
   standings,
   playersCount,
   roundsValid,
+  eventName,
   onStartRound,
   onFinishEvent,
   onNewEvent,
@@ -74,7 +76,11 @@ export default function SwissPanel({
           event
         </div>
         <h3 className="tk-section-title">Final Standings</h3>
-        <StandingsTable rows={standings} playerMap={playerMap} />
+        <StandingsTable
+          rows={standings}
+          playerMap={playerMap}
+          eventName={eventName}
+        />
       </div>
     );
   }
@@ -229,7 +235,11 @@ export default function SwissPanel({
       {matches.length > 0 && (
         <div className="tk-standings-block">
           <h3 className="tk-section-title">Standings</h3>
-          <StandingsTable rows={standings} playerMap={playerMap} />
+          <StandingsTable
+            rows={standings}
+            playerMap={playerMap}
+            eventName={eventName}
+          />
         </div>
       )}
     </div>
