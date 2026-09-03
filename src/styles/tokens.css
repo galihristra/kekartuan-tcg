@@ -1328,6 +1328,22 @@ a.tk-btn {
 }
 .tk-perf-title {
   display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+/* The event name reads as a kicker above the player's name, so a screenshot
+   of this modal carries the event it belongs to. */
+.tk-perf-title-event {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.tk-perf-title-main {
+  display: inline-flex;
   align-items: center;
 }
 .tk-perf-stats {

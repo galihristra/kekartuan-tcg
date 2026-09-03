@@ -6,6 +6,9 @@ interface PlayerPerformanceModalProps {
   onClose: () => void;
   row: StandingRow;
   playerMap: Record<string, Player>;
+  /** Shown above the player's name so a screenshot of this modal says which
+   *  event the result belongs to. */
+  eventName?: string;
   /** When provided, renders an "Edit deck" button (admin only). */
   onEditDeck?: () => void;
 }
@@ -30,6 +33,7 @@ export default function PlayerPerformanceModal({
   onClose,
   row,
   playerMap,
+  eventName,
   onEditDeck,
 }: PlayerPerformanceModalProps) {
   const player = playerMap[row.id];
@@ -75,8 +79,13 @@ export default function PlayerPerformanceModal({
       className="tk-modal--perf"
       title={
         <span className="tk-perf-title">
-          <DeckSprites player={player} />
-          {row.name}'s Result
+          {eventName?.trim() && (
+            <span className="tk-perf-title-event">{eventName.trim()}</span>
+          )}
+          <span className="tk-perf-title-main">
+            <DeckSprites player={player} />
+            {row.name}'s Result
+          </span>
         </span>
       }
     >

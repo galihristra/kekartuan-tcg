@@ -12,6 +12,7 @@ interface LeaguePanelProps {
   playerMap: Record<string, Player>;
   standings: StandingRow[];
   playersCount: number;
+  eventName: string;
   onStartRound: () => void;
   onFinishEvent: () => void;
   onNewEvent: () => void;
@@ -30,6 +31,7 @@ export default function LeaguePanel({
   playerMap,
   standings,
   playersCount,
+  eventName,
   onStartRound,
   onFinishEvent,
   onNewEvent,
@@ -53,7 +55,12 @@ export default function LeaguePanel({
           league
         </div>
         <h3 className="tk-section-title">Final Standings</h3>
-        <StandingsTable rows={standings} playerMap={playerMap} mode="league" />
+        <StandingsTable
+          rows={standings}
+          playerMap={playerMap}
+          mode="league"
+          eventName={eventName}
+        />
       </div>
     );
   }
@@ -159,6 +166,7 @@ export default function LeaguePanel({
             rows={standings}
             playerMap={playerMap}
             mode="league"
+            eventName={eventName}
           />
         </div>
       )}

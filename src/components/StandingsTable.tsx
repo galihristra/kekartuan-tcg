@@ -31,6 +31,8 @@ interface StandingsTableProps {
   playerMap: Record<string, Player>;
   /** Which tiebreak columns to show. Non-league modes (single/double elim don't use this table) fall back to Swiss's columns. */
   mode?: Mode;
+  /** Titles the performance modal, so a shared screenshot names the event. */
+  eventName?: string;
   /** When provided, the performance modal offers an "Edit deck" button. */
   onEditDeck?: (playerId: string) => void;
 }
@@ -39,6 +41,7 @@ export default function StandingsTable({
   rows,
   playerMap,
   mode = 'swiss',
+  eventName,
   onEditDeck,
 }: StandingsTableProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -96,6 +99,7 @@ export default function StandingsTable({
           onClose={() => setSelectedId(null)}
           row={selectedRow}
           playerMap={playerMap}
+          eventName={eventName}
           onEditDeck={
             onEditDeck
               ? () => {
