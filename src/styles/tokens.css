@@ -1552,6 +1552,32 @@ a.tk-btn {
 .tk-share-card-head {
   margin-bottom: 14px;
 }
+/* The heading is the one part of the card the capture can get wrong.
+   `.tk-perf-title-text` is a shrink-to-fit flex column, and WebKit resolves
+   that width against the *min*-content of a child carrying `overflow-wrap:
+   anywhere` — so an event name a good deal shorter than the room available
+   still collapses the column, wraps, and draws its second line straight over
+   the player's name. Chromium sizes the same markup correctly, which is why
+   this only shows up in the picture some phones produce.
+
+   Two changes take the guesswork out: the column gets a definite width from
+   the flex algorithm rather than an intrinsic one, and the kicker is held to a
+   single line, which fixes the heading's height whatever the organizer types.
+   The player's name below it still wraps — that one is the headline and must
+   not be cut. */
+.tk-share-card-head .tk-perf-title {
+  display: flex;
+}
+.tk-share-card-head .tk-perf-title-text {
+  flex: 1;
+  min-width: 0;
+}
+.tk-share-card-head .tk-perf-title-event {
+  overflow-wrap: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .tk-share-card-head .tk-perf-title-main {
   font-family: 'Barlow Condensed', 'Inter', sans-serif;
   font-weight: 700;
