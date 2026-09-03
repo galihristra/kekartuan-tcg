@@ -1216,7 +1216,15 @@ a.tk-btn {
   vertical-align: middle;
   margin-right: 2px;
 }
+/* A deck's two sprites are one indivisible badge: keep them on a single line
+   and at full size even when they sit in a flex row that runs out of width
+   (the result modal's title and round list, on a phone), where shrinking this
+   span would otherwise wrap the second sprite under the first. */
 .tk-deck-sprites {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  flex: none;
   margin-right: 10px;
 }
 /* ===================== Self-registration ===================== */
