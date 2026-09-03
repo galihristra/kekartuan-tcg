@@ -15,6 +15,11 @@ interface RoundEntry {
   round: number;
   opponentId: string | null;
   result: 'W' | 'D' | 'L';
+  /** Game score of the match, from this player's side. Null for a bye,
+   *  which is awarded as a match win without any games being played. */
+  gamesFor: number | null;
+  gamesAgainst: number | null;
+  forfeited?: boolean;
   mw: number | null;
   gw: number | null;
 }
@@ -37,6 +42,9 @@ export default function PlayerPerformanceModal({
       round: o.round,
       opponentId: o.id,
       result: o.result,
+      gamesFor: o.gamesFor,
+      gamesAgainst: o.gamesAgainst,
+      forfeited: o.forfeited,
       mw: o.mw,
       gw: o.gw,
     })),
@@ -44,6 +52,8 @@ export default function PlayerPerformanceModal({
       round,
       opponentId: null,
       result: 'W' as const,
+      gamesFor: null,
+      gamesAgainst: null,
       mw: null,
       gw: null,
     })),
@@ -92,6 +102,7 @@ export default function PlayerPerformanceModal({
         <ul className="tk-perf-rounds">
           {rounds.map((e) => {
             const opp = e.opponentId ? playerMap[e.opponentId] : undefined;
+            const hasScore = e.gamesFor !== null && e.gamesAgainst !== null;
             return (
               <li
                 className={`tk-perf-round tk-perf-round--${e.result}`}
@@ -108,15 +119,24 @@ export default function PlayerPerformanceModal({
                   {e.mw !== null && e.gw !== null && (
                     <span className="tk-perf-round-tb">
                       Opp MW {(e.mw * 100).toFixed(1)}% · Opp GW{' '}
-                      {(e.gw * 100).toFixed(1)}%
+                      {(e.gw * 100).toFixed(1)}%{e.forfeited && ' · forfeit'}
                     </span>
                   )}
                 </span>
                 <span
                   className="tk-perf-round-result"
-                  title={RESULT_LABEL[e.result]}
+                  title={
+                    hasScore
+                      ? `${RESULT_LABEL[e.result]} ${e.gamesFor}-${e.gamesAgainst}`
+                      : RESULT_LABEL[e.result]
+                  }
                 >
                   {e.result}
+                  {hasScore && (
+                    <span className="tk-perf-round-score">
+                      ({e.gamesFor}–{e.gamesAgainst})
+                    </span>
+                  )}
                 </span>
               </li>
             );

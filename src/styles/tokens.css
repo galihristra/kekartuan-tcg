@@ -1149,6 +1149,9 @@ a.tk-btn {
   .tk-perf-round-result {
     font-size: 23px;
   }
+  .tk-perf-round-score {
+    font-size: 14px;
+  }
 }
 
 /* ===================== Deck namesake picker ===================== */
@@ -1418,10 +1421,20 @@ a.tk-btn {
 }
 .tk-perf-round-result {
   flex: none;
+  white-space: nowrap;
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 700;
   font-size: 18px;
   color: var(--draw);
+}
+/* The match's game score sits next to the W/D/L letter, dimmer and in the
+   same mono face the other numbers use so the letter still reads first. */
+.tk-perf-round-score {
+  margin-left: 5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 400;
+  font-size: 13px;
+  opacity: 0.8;
 }
 .tk-perf-round--W .tk-perf-round-result {
   color: var(--win);
