@@ -200,6 +200,56 @@ describe('Standings match history', () => {
     expect(byId.p3.byeRounds).toEqual([1]);
     expect(byId.p3.opponents.map((o) => o.id)).toEqual(['p1']);
   });
+
+  it('carries each match game score into the opponent breakdown', () => {
+    const players = makePlayers(2);
+    const matches: SwissMatch[] = [
+      {
+        p1Id: 'p1',
+        p2Id: 'p2',
+        round: 1,
+        result: 'p2',
+        p1Games: 1,
+        p2Games: 2,
+      },
+    ];
+    const byId = Object.fromEntries(
+      computeStandings(players, matches, 'league').map((r) => [r.id, r]),
+    );
+
+    // Each side sees the score from its own point of view.
+    expect(byId.p1.opponents).toMatchObject([
+      { result: 'L', gamesFor: 1, gamesAgainst: 2 },
+    ]);
+    expect(byId.p2.opponents).toMatchObject([
+      { result: 'W', gamesFor: 2, gamesAgainst: 1 },
+    ]);
+  });
+
+  it('flags a forfeited match in the opponent breakdown', () => {
+    const players = makePlayers(2);
+    const { matches } = dropPlayer(
+      players,
+      [
+        {
+          p1Id: 'p1',
+          p2Id: 'p2',
+          round: 1,
+          result: null,
+          p1Games: 0,
+          p2Games: 0,
+        },
+      ],
+      'p2',
+    );
+    const byId = Object.fromEntries(
+      computeStandings(players, matches, 'league').map((r) => [r.id, r]),
+    );
+
+    expect(byId.p1.opponents).toMatchObject([
+      { result: 'W', gamesFor: 2, gamesAgainst: 0, forfeited: true },
+    ]);
+  });
 });
 
 describe('Single elimination', () => {

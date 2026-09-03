@@ -39,6 +39,12 @@ export interface OpponentBreakdown {
   round: number;
   /** Outcome from the perspective of the player this breakdown belongs to. */
   result: MatchOutcome;
+  /** Games won in this match by the player this breakdown belongs to. */
+  gamesFor: number;
+  /** Games won in this match by the opponent. */
+  gamesAgainst: number;
+  /** Set when the match was decided by a drop rather than being played out. */
+  forfeited?: boolean;
   mw: number;
   gw: number;
 }
@@ -161,7 +167,7 @@ interface PlayerStat {
   losses: number;
   gamesWon: number;
   gamesPlayed: number;
-  opponents: { id: string; round: number; result: MatchOutcome }[];
+  opponents: Omit<OpponentBreakdown, 'mw' | 'gw'>[];
   byeRounds: number[];
 }
 
@@ -209,11 +215,27 @@ function computeStandings(
       m.result === 'p1' ? 'W' : m.result === 'p2' ? 'L' : 'D';
     const outcome2: MatchOutcome =
       outcome1 === 'W' ? 'L' : outcome1 === 'L' ? 'W' : 'D';
-    s1.opponents.push({ id: p2Id, round: m.round, result: outcome1 });
-    s2.opponents.push({ id: m.p1Id, round: m.round, result: outcome2 });
-    s1.gamesWon += m.p1Games || 0;
-    s2.gamesWon += m.p2Games || 0;
-    const totalGames = (m.p1Games || 0) + (m.p2Games || 0);
+    const p1Games = m.p1Games || 0;
+    const p2Games = m.p2Games || 0;
+    s1.opponents.push({
+      id: p2Id,
+      round: m.round,
+      result: outcome1,
+      gamesFor: p1Games,
+      gamesAgainst: p2Games,
+      forfeited: m.forfeited,
+    });
+    s2.opponents.push({
+      id: m.p1Id,
+      round: m.round,
+      result: outcome2,
+      gamesFor: p2Games,
+      gamesAgainst: p1Games,
+      forfeited: m.forfeited,
+    });
+    s1.gamesWon += p1Games;
+    s2.gamesWon += p2Games;
+    const totalGames = p1Games + p2Games;
     s1.gamesPlayed += totalGames;
     s2.gamesPlayed += totalGames;
     if (m.result === 'p1') {
