@@ -33,6 +33,8 @@ interface StandingsTableProps {
   mode?: Mode;
   /** Titles the performance modal, so a shared screenshot names the event. */
   eventName?: string;
+  /** ISO timestamp, dated into the footer of a shared result image. */
+  eventDate?: string;
   /** When provided, the performance modal offers an "Edit deck" button. */
   onEditDeck?: (playerId: string) => void;
 }
@@ -42,6 +44,7 @@ export default function StandingsTable({
   playerMap,
   mode = 'swiss',
   eventName,
+  eventDate,
   onEditDeck,
 }: StandingsTableProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -100,6 +103,7 @@ export default function StandingsTable({
           row={selectedRow}
           playerMap={playerMap}
           eventName={eventName}
+          eventDate={eventDate}
           onEditDeck={
             onEditDeck
               ? () => {

@@ -13,6 +13,8 @@ interface LeaguePanelProps {
   standings: StandingRow[];
   playersCount: number;
   eventName: string;
+  /** ISO timestamp, dated into the footer of a shared result image. */
+  eventDate?: string;
   onStartRound: () => void;
   onFinishEvent: () => void;
   onNewEvent: () => void;
@@ -32,6 +34,7 @@ export default function LeaguePanel({
   standings,
   playersCount,
   eventName,
+  eventDate,
   onStartRound,
   onFinishEvent,
   onNewEvent,
@@ -60,6 +63,7 @@ export default function LeaguePanel({
           playerMap={playerMap}
           mode="league"
           eventName={eventName}
+          eventDate={eventDate}
         />
       </div>
     );
@@ -167,6 +171,7 @@ export default function LeaguePanel({
             playerMap={playerMap}
             mode="league"
             eventName={eventName}
+            eventDate={eventDate}
           />
         </div>
       )}

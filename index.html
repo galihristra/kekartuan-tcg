@@ -27,9 +27,16 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- `crossorigin` is what makes this sheet's @font-face rules readable from
+         script. Without it the CSSOM refuses cross-origin access, and the
+         shareable result image (src/lib/shareImage.ts) can't find the fonts to
+         embed, so it renders in whatever the system fallback happens to be.
+         Google serves both the CSS and the font files with `Access-Control-
+         Allow-Origin: *`, so asking for CORS costs nothing here. -->
     <link
       href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
+      crossorigin
     />
   </head>
   <body>
