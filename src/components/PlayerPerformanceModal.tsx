@@ -1,76 +1,74 @@
+import { useRef, useState } from 'react';
 import type { Player, StandingRow } from '../engine/tournament';
+import { useShareImage } from '../hooks/useShareImage';
+import {
+  browserShareTargets,
+  resultImageFilename,
+  resultShareText,
+  shareOrSaveImage,
+} from '../lib/shareImage';
 import Modal from './Modal';
-import DeckSprites from './DeckSprites';
+import PlayerResultDetails from './PlayerResultDetails';
+import PlayerResultShareCard from './PlayerResultShareCard';
+import PlayerResultTitle from './PlayerResultTitle';
 
 interface PlayerPerformanceModalProps {
   onClose: () => void;
   row: StandingRow;
   playerMap: Record<string, Player>;
-  /** Shown above the player's name so a screenshot of this modal says which
+  /** Shown above the player's name so a shared picture of this modal says which
    *  event the result belongs to. */
   eventName?: string;
+  /** ISO timestamp, printed in the footer of the shared picture. */
+  eventDate?: string;
   /** When provided, renders an "Edit deck" button (admin only). */
   onEditDeck?: () => void;
 }
 
-/** One played round, either against an opponent or a bye. */
-interface RoundEntry {
-  round: number;
-  opponentId: string | null;
-  result: 'W' | 'D' | 'L';
-  /** Game score of the match, from this player's side. Null for a bye,
-   *  which is awarded as a match win without any games being played. */
-  gamesFor: number | null;
-  gamesAgainst: number | null;
-  forfeited?: boolean;
-  mw: number | null;
-  gw: number | null;
+function ShareIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 15V3m0 0L8 7m4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"
+      />
+    </svg>
+  );
 }
-
-const RESULT_LABEL = { W: 'Win', D: 'Draw', L: 'Loss' } as const;
 
 export default function PlayerPerformanceModal({
   onClose,
   row,
   playerMap,
   eventName,
+  eventDate,
   onEditDeck,
 }: PlayerPerformanceModalProps) {
-  const player = playerMap[row.id];
+  const cardRef = useRef<HTMLDivElement>(null);
+  const { status, previewUrl, blob, render, reset } = useShareImage(cardRef);
+  const [handingOff, setHandingOff] = useState(false);
 
-  // Opponents and byes are tracked separately (byes have no opponent and are
-  // excluded from the tiebreaker averages), so merge them back into one
-  // round-ordered history.
-  const rounds: RoundEntry[] = [
-    ...row.opponents.map((o) => ({
-      round: o.round,
-      opponentId: o.id,
-      result: o.result,
-      gamesFor: o.gamesFor,
-      gamesAgainst: o.gamesAgainst,
-      forfeited: o.forfeited,
-      mw: o.mw,
-      gw: o.gw,
-    })),
-    ...row.byeRounds.map((round) => ({
-      round,
-      opponentId: null,
-      result: 'W' as const,
-      gamesFor: null,
-      gamesAgainst: null,
-      mw: null,
-      gw: null,
-    })),
-  ].sort((a, b) => a.round - b.round);
+  async function handOff() {
+    if (!blob) return;
+    setHandingOff(true);
+    try {
+      await shareOrSaveImage(
+        {
+          blob,
+          filename: resultImageFilename(eventName, row.name),
+          title: `${row.name}'s Result`,
+          text: resultShareText(eventName, row.name),
+        },
+        browserShareTargets(),
+      );
+    } finally {
+      setHandingOff(false);
+    }
+  }
 
-  const stats: { label: string; value: string }[] = [
-    { label: 'Points', value: String(row.points) },
-    { label: 'W-D-L', value: `${row.wins}-${row.draws}-${row.losses}` },
-    { label: 'MW%', value: (row.mw * 100).toFixed(1) },
-    { label: 'GW%', value: (row.gw * 100).toFixed(1) },
-    { label: 'OMW%', value: (row.omw * 100).toFixed(1) },
-    { label: 'OGW%', value: (row.ogw * 100).toFixed(1) },
-  ];
+  const shareLabel =
+    status === 'rendering' ? 'Preparing image…' : 'Share this result';
 
   return (
     <Modal
@@ -78,80 +76,92 @@ export default function PlayerPerformanceModal({
       onClose={onClose}
       className="tk-modal--perf"
       title={
-        <span className="tk-perf-title">
-          <DeckSprites player={player} />
-          <span className="tk-perf-title-text">
-            {eventName?.trim() && (
-              <span className="tk-perf-title-event">{eventName.trim()}</span>
+        <PlayerResultTitle
+          playerName={row.name}
+          player={playerMap[row.id]}
+          eventName={eventName}
+        />
+      }
+      headerActions={
+        status === 'idle' || status === 'rendering' ? (
+          <button
+            type="button"
+            className="tk-btn ghost tk-icon-btn"
+            onClick={render}
+            disabled={status === 'rendering'}
+            title={shareLabel}
+            aria-label={shareLabel}
+          >
+            {status === 'rendering' ? (
+              <span className="tk-spinner" />
+            ) : (
+              <ShareIcon />
             )}
-            <span className="tk-perf-title-main">{row.name}'s Result</span>
-          </span>
-        </span>
+          </button>
+        ) : null
       }
     >
-      <div className="tk-perf-stats">
-        {stats.map((s) => (
-          <div className="tk-perf-stat" key={s.label}>
-            <span className="tk-perf-stat-label">{s.label}</span>
-            <span className="tk-perf-stat-value">{s.value}</span>
+      {status === 'ready' && previewUrl ? (
+        // The share sheet has to be opened straight off a tap: iOS drops the
+        // page's user activation while the image renders, and rejects a
+        // `navigator.share` that arrives after it. Showing the finished picture
+        // first splits the render off the share, and lets the player see what
+        // they're about to post.
+        <div className="tk-share-preview">
+          <img
+            className="tk-share-preview-img"
+            src={previewUrl}
+            alt={`${row.name}'s result as a shareable image`}
+          />
+          <div className="tk-share-preview-actions">
+            <button
+              className="tk-btn"
+              onClick={handOff}
+              disabled={handingOff}
+              type="button"
+            >
+              Share or save
+            </button>
+            <button className="tk-btn ghost" onClick={reset} type="button">
+              Back
+            </button>
           </div>
-        ))}
-      </div>
-
-      {onEditDeck && (
-        <button className="tk-btn ghost tk-perf-edit" onClick={onEditDeck}>
-          Edit deck
-        </button>
-      )}
-
-      <h4 className="tk-perf-heading">Rounds</h4>
-      {rounds.length === 0 ? (
-        <div className="tk-perf-empty">No rounds played yet.</div>
+        </div>
       ) : (
-        <ul className="tk-perf-rounds">
-          {rounds.map((e) => {
-            const opp = e.opponentId ? playerMap[e.opponentId] : undefined;
-            const hasScore = e.gamesFor !== null && e.gamesAgainst !== null;
-            return (
-              <li
-                className={`tk-perf-round tk-perf-round--${e.result}`}
-                key={`${e.round}-${e.opponentId ?? 'bye'}`}
-              >
-                <span className="tk-perf-round-num">{e.round}</span>
-                <span className="tk-perf-round-opp">
-                  <span className="tk-perf-round-name">
-                    <DeckSprites player={opp} size="xs" />
-                    {e.opponentId
-                      ? (opp?.name ?? 'Unknown')
-                      : 'Bye (no opponent)'}
-                  </span>
-                  {e.mw !== null && e.gw !== null && (
-                    <span className="tk-perf-round-tb">
-                      Opp MW {(e.mw * 100).toFixed(1)}% · Opp GW{' '}
-                      {(e.gw * 100).toFixed(1)}%{e.forfeited && ' · forfeit'}
-                    </span>
-                  )}
-                </span>
-                <span
-                  className="tk-perf-round-result"
-                  title={
-                    hasScore
-                      ? `${RESULT_LABEL[e.result]} ${e.gamesFor}-${e.gamesAgainst}`
-                      : RESULT_LABEL[e.result]
-                  }
+        <>
+          {status === 'error' && (
+            <div className="tk-share-error">
+              <span>Couldn't build the image.</span>
+              <button className="tk-btn ghost" onClick={render} type="button">
+                Try again
+              </button>
+            </div>
+          )}
+
+          <PlayerResultDetails
+            row={row}
+            playerMap={playerMap}
+            afterStats={
+              onEditDeck && (
+                <button
+                  className="tk-btn ghost tk-perf-edit"
+                  onClick={onEditDeck}
                 >
-                  {e.result}
-                  {hasScore && (
-                    <span className="tk-perf-round-score">
-                      ({e.gamesFor}–{e.gamesAgainst})
-                    </span>
-                  )}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+                  Edit deck
+                </button>
+              )
+            }
+          />
+        </>
       )}
+
+      <PlayerResultShareCard
+        ref={cardRef}
+        row={row}
+        playerMap={playerMap}
+        eventName={eventName}
+        eventDate={eventDate}
+      />
     </Modal>
   );
 }

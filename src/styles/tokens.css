@@ -1519,3 +1519,122 @@ a.tk-btn {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* ===================== Shareable result image ===================== */
+/* Parks the card being rasterized off-screen. A viewport-relative offset (-100vw)
+   would leave part of a 460px card visible on a narrower phone, so the offset is
+   a flat, large one. It stays inside `.tk-root` because that's where the palette's
+   custom properties are declared — lifted anywhere else, every var() in the card
+   would resolve to nothing. */
+.tk-share-stage {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  pointer-events: none;
+}
+.tk-share-card {
+  width: 460px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+.tk-share-card-head {
+  margin-bottom: 14px;
+}
+.tk-share-card-head .tk-perf-title-main {
+  font-family: 'Barlow Condensed', 'Inter', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 20px;
+}
+.tk-share-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gold-dim);
+}
+.tk-share-card-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.tk-share-card-brand {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 14px;
+  color: var(--gold);
+  line-height: 1.15;
+}
+.tk-share-card-brand small {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.tk-share-card-date {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+.tk-modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.tk-share-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tk-share-preview-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.tk-share-preview-actions {
+  display: flex;
+  gap: 8px;
+}
+.tk-share-preview-actions .tk-btn {
+  flex: 1;
+}
+.tk-share-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--loss);
+}
+.tk-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: tk-spin 0.7s linear infinite;
+}
+@keyframes tk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tk-spinner {
+    animation-duration: 2.4s;
+  }
+}

@@ -174,6 +174,7 @@ export default function ArchivedEventDetail({
         )}
         mode={event.state.mode}
         eventName={event.name}
+        eventDate={event.created_at}
         onEditDeck={isAdmin ? setEditingDeckPlayerId : undefined}
       />
       <h3 className="tk-section-title">Photos</h3>

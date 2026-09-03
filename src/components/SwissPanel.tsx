@@ -14,6 +14,8 @@ interface SwissPanelProps {
   playersCount: number;
   roundsValid: boolean;
   eventName: string;
+  /** ISO timestamp, dated into the footer of a shared result image. */
+  eventDate?: string;
   onStartRound: () => void;
   onFinishEvent: () => void;
   onNewEvent: () => void;
@@ -54,6 +56,7 @@ export default function SwissPanel({
   playersCount,
   roundsValid,
   eventName,
+  eventDate,
   onStartRound,
   onFinishEvent,
   onNewEvent,
@@ -80,6 +83,7 @@ export default function SwissPanel({
           rows={standings}
           playerMap={playerMap}
           eventName={eventName}
+          eventDate={eventDate}
         />
       </div>
     );
@@ -239,6 +243,7 @@ export default function SwissPanel({
             rows={standings}
             playerMap={playerMap}
             eventName={eventName}
+            eventDate={eventDate}
           />
         </div>
       )}

@@ -70,6 +70,9 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
   const [eventName, setEventName] = useState('');
   const [eventDescription, setEventDescription] = useState('');
   const [eventLocation, setEventLocation] = useState('');
+  // Read-only: the organizer never edits it, it just dates the shareable
+  // result image. Kept as the raw ISO string the row carries.
+  const [eventCreatedAt, setEventCreatedAt] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
@@ -80,6 +83,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     setEventName(rec.name);
     setEventDescription(rec.description);
     setEventLocation(rec.location);
+    setEventCreatedAt(rec.created_at);
     const s = rec.state;
     setMode(s.mode);
     setPlayers(s.players);
@@ -435,6 +439,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     setEventDescription,
     eventLocation,
     setEventLocation,
+    eventCreatedAt,
     loading,
     loadError,
     saveLabel,
