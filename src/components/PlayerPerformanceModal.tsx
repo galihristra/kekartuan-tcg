@@ -79,12 +79,12 @@ export default function PlayerPerformanceModal({
       className="tk-modal--perf"
       title={
         <span className="tk-perf-title">
-          {eventName?.trim() && (
-            <span className="tk-perf-title-event">{eventName.trim()}</span>
-          )}
-          <span className="tk-perf-title-main">
-            <DeckSprites player={player} />
-            {row.name}'s Result
+          <DeckSprites player={player} />
+          <span className="tk-perf-title-text">
+            {eventName?.trim() && (
+              <span className="tk-perf-title-event">{eventName.trim()}</span>
+            )}
+            <span className="tk-perf-title-main">{row.name}'s Result</span>
           </span>
         </span>
       }
