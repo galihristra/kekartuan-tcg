@@ -1,8 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Player, StandingRow } from '../engine/tournament';
 import { useShareImage } from '../hooks/useShareImage';
 import {
   browserShareTargets,
+  canCopyImage,
+  canShareImageFile,
+  copyImageToClipboard,
   resultImageFilename,
   resultShareText,
   shareOrSaveImage,
@@ -48,27 +51,55 @@ export default function PlayerPerformanceModal({
   const cardRef = useRef<HTMLDivElement>(null);
   const { status, previewUrl, blob, render, reset } = useShareImage(cardRef);
   const [handingOff, setHandingOff] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Closing the modal mid-confirmation would otherwise leave the timer to set
+  // state on a gone component.
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
+  const image = useMemo(
+    () =>
+      blob && {
+        blob,
+        filename: resultImageFilename(eventName, row.name),
+        title: `${row.name}'s Result`,
+        text: resultShareText(eventName, row.name),
+      },
+    [blob, eventName, row.name],
+  );
 
   async function handOff() {
-    if (!blob) return;
+    if (!image) return;
     setHandingOff(true);
     try {
-      await shareOrSaveImage(
-        {
-          blob,
-          filename: resultImageFilename(eventName, row.name),
-          title: `${row.name}'s Result`,
-          text: resultShareText(eventName, row.name),
-        },
-        browserShareTargets(),
-      );
+      await shareOrSaveImage(image, browserShareTargets());
     } finally {
       setHandingOff(false);
     }
   }
 
+  function copy() {
+    if (!image) return;
+    // Nothing is awaited before the clipboard write — see copyImageToClipboard.
+    copyImageToClipboard(image).then((ok) => {
+      if (!ok) return;
+      setCopied(true);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   const shareLabel =
     status === 'rendering' ? 'Preparing image…' : 'Share this result';
+  // Chrome on desktop Linux and macOS has `navigator.share` but won't take
+  // files, so the primary button says what it will actually do.
+  const handOffLabel = image && canShareImageFile(image) ? 'Share' : 'Save';
 
   return (
     <Modal
@@ -120,8 +151,17 @@ export default function PlayerPerformanceModal({
               disabled={handingOff}
               type="button"
             >
-              Share or save
+              {handOffLabel}
             </button>
+            {canCopyImage() && (
+              <button
+                className={`tk-btn ghost${copied ? ' is-copied' : ''}`}
+                onClick={copy}
+                type="button"
+              >
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            )}
             <button className="tk-btn ghost" onClick={reset} type="button">
               Back
             </button>

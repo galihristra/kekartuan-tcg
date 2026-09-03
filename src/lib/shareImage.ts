@@ -99,13 +99,54 @@ function toFile(image: ShareImage): File {
   return new File([image.blob], image.filename, { type: image.blob.type });
 }
 
+/** Whether this platform's share sheet takes files, which decides whether the
+ *  primary button offers to share or only to save. Chrome hands desktop Linux
+ *  and macOS a `navigator.share` that refuses files, so asking `canShare` is
+ *  the only honest answer — the method existing isn't one. */
+export function canShareImageFile(image: ShareImage): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.canShare === 'function' &&
+    typeof navigator.share === 'function' &&
+    navigator.canShare({ files: [toFile(image)] })
+  );
+}
+
+/** Whether the clipboard will take an image. Needs a secure context, so this is
+ *  false over plain http even in a browser that supports it. */
+export function canCopyImage(): boolean {
+  return (
+    typeof ClipboardItem !== 'undefined' &&
+    typeof navigator !== 'undefined' &&
+    typeof navigator.clipboard?.write === 'function'
+  );
+}
+
+/**
+ * Puts the image on the clipboard, ready to paste into a chat or a compose box.
+ *
+ * `write` is called with a blob that already exists, and nothing is awaited
+ * before it: Safari only honours a clipboard write issued synchronously from
+ * the tap that asked for it, which is the same activation rule the preview step
+ * exists to satisfy for `navigator.share`.
+ */
+export async function copyImageToClipboard(
+  image: ShareImage,
+): Promise<boolean> {
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({ [image.blob.type]: image.blob }),
+    ]);
+    return true;
+  } catch (e) {
+    console.error('Failed to copy the result image', e);
+    return false;
+  }
+}
+
 export function browserShareTargets(): ShareTargets {
   return {
-    canShareFile: (image) =>
-      typeof navigator !== 'undefined' &&
-      typeof navigator.canShare === 'function' &&
-      typeof navigator.share === 'function' &&
-      navigator.canShare({ files: [toFile(image)] }),
+    canShareFile: canShareImageFile,
     shareFile: (image) =>
       navigator.share({
         files: [toFile(image)],

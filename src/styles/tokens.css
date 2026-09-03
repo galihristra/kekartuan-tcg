@@ -793,7 +793,9 @@ a.tk-btn {
 }
 /* Momentary confirmation after copying (icon swaps to a check mark). */
 .tk-icon-btn.is-copied,
-.tk-icon-btn.is-copied:hover {
+.tk-icon-btn.is-copied:hover,
+.tk-btn.ghost.is-copied,
+.tk-btn.ghost.is-copied:hover {
   color: var(--win);
   border-color: var(--win);
 }
@@ -1604,12 +1606,15 @@ a.tk-btn {
   border-radius: 10px;
   border: 1px solid var(--border);
 }
+/* Two or three buttons depending on what the platform can do, so they share the
+   row evenly and wrap to a second line rather than squeezing on a narrow phone. */
 .tk-share-preview-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .tk-share-preview-actions .tk-btn {
-  flex: 1;
+  flex: 1 1 96px;
 }
 .tk-share-error {
   display: flex;
