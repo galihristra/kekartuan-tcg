@@ -34,6 +34,10 @@ function row(overrides: Partial<StandingRow> = {}): StandingRow {
     gameDiff: 3,
     opponents: [],
     byeRounds: [],
+    rank: 1,
+    tiebreakNeeded: false,
+    manuallyOrdered: false,
+    tieGroup: null,
     ...overrides,
   };
 }

@@ -1066,6 +1066,44 @@ a.tk-btn {
 
 /* ============ Responsive: tablet & mobile ============ */
 /* Single-column below ~800px covers portrait tablets and phones (see .tk-layout above). */
+/* A place two or more players share, and the organizer's way out of it. */
+.tk-standings-tiemark {
+  margin-left: 3px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.tk-standings-manual {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+.tk-standings-reorder {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.tk-standings-reorder .tk-btn {
+  padding: 0 6px;
+  line-height: 1.6;
+}
+.tk-tie-notice {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gold);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 @media (max-width: 600px) {
   .tk-root {
     padding: 14px;

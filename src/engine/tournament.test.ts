@@ -375,6 +375,24 @@ describe('Round-robin schedule', () => {
   );
 });
 
+/** One decided match: `winner` took it `for`-`against` in games. */
+function w(
+  winner: string,
+  loser: string,
+  round: number,
+  gamesFor: number,
+  gamesAgainst: number,
+): SwissMatch {
+  return {
+    p1Id: winner,
+    p2Id: loser,
+    round,
+    result: 'p1',
+    p1Games: gamesFor,
+    p2Games: gamesAgainst,
+  };
+}
+
 describe('computeStandings league mode', () => {
   it('sorts by points, then game differential, then game win %', () => {
     // p1 beats p3 2-0, p2 beats p3 2-1 — p1 and p2 tied on points (3 each
@@ -404,6 +422,114 @@ describe('computeStandings league mode', () => {
     expect(standings[0].gameDiff).toBe(2);
     expect(standings[1].gameDiff).toBe(1);
     expect(standings[2].id).toBe('p3');
+  });
+
+  it('breaks a points/diff/GW% tie on head-to-head', () => {
+    // Galih (p1) and Naufal (p2) both finish 1-1, each winning 2-0 and losing
+    // 0-2, so points, differential and GW% are identical. Galih won the match
+    // between them.
+    const players = makePlayers(4);
+    const matches: SwissMatch[] = [
+      w('p1', 'p2', 1, 2, 0), // Galih beat Naufal 2-0
+      w('p3', 'p1', 2, 2, 0), // Galih then lost 0-2
+      w('p2', 'p4', 2, 2, 0), // Naufal beat someone else 2-0
+    ];
+    const standings = computeStandings(players, matches, 'league');
+    const [galih, naufal] = ['p1', 'p2'].map((id) =>
+      standings.find((r) => r.id === id)!,
+    );
+
+    expect(galih.points).toBe(naufal.points);
+    expect(galih.gameDiff).toBe(naufal.gameDiff);
+    expect(galih.gw).toBe(naufal.gw);
+    expect(standings.indexOf(galih)).toBeLessThan(standings.indexOf(naufal));
+    expect(galih.rank).toBeLessThan(naufal.rank);
+    expect(galih.tiebreakNeeded).toBe(false);
+  });
+
+  it('shares a place, and skips the ones it fills, when nothing separates two players', () => {
+    // Both undefeated, every win 2-0, and they have not met — the real
+    // Kekartuan case. Points, differential and GW% are all exactly equal.
+    const players = makePlayers(6);
+    const matches: SwissMatch[] = [
+      w('p1', 'p3', 1, 2, 0),
+      w('p1', 'p4', 2, 2, 0),
+      w('p2', 'p5', 1, 2, 0),
+      w('p2', 'p6', 2, 2, 0),
+      w('p3', 'p5', 3, 2, 0),
+    ];
+    const standings = computeStandings(players, matches, 'league');
+
+    expect(standings.slice(0, 2).map((r) => r.rank)).toEqual([1, 1]);
+    expect(standings.slice(0, 2).every((r) => r.tiebreakNeeded)).toBe(true);
+    // Two players hold 1st, so the next player down is 3rd, not 2nd.
+    expect(standings[2].rank).toBe(3);
+    expect(standings[2].tiebreakNeeded).toBe(false);
+  });
+
+  it('cannot be reordered by roster position alone', () => {
+    // Roster order used to decide a perfect tie outright. It still breaks the
+    // final stalemate, but both players now share the place either way.
+    const players = makePlayers(4);
+    const matches: SwissMatch[] = [
+      w('p1', 'p3', 1, 2, 0),
+      w('p2', 'p4', 1, 2, 0),
+    ];
+    const asIs = computeStandings(players, matches, 'league');
+    const flipped = computeStandings(
+      [players[1], players[0], players[2], players[3]],
+      matches,
+      'league',
+    );
+
+    expect(asIs.slice(0, 2).map((r) => r.rank)).toEqual([1, 1]);
+    expect(flipped.slice(0, 2).map((r) => r.rank)).toEqual([1, 1]);
+  });
+
+  it('lets the organizer settle a tie head-to-head cannot', () => {
+    const players = makePlayers(4);
+    const matches: SwissMatch[] = [
+      w('p1', 'p3', 1, 2, 0),
+      w('p2', 'p4', 1, 2, 0),
+    ];
+
+    const settled = computeStandings(players, matches, 'league', ['p2', 'p1']);
+    expect(settled.slice(0, 2).map((r) => r.id)).toEqual(['p2', 'p1']);
+    expect(settled.slice(0, 2).map((r) => r.rank)).toEqual([1, 2]);
+    expect(settled.slice(0, 2).every((r) => r.manuallyOrdered)).toBe(true);
+    expect(settled.slice(0, 2).some((r) => r.tiebreakNeeded)).toBe(false);
+  });
+
+  it('ignores an organizer ordering that would jump a player they finished behind', () => {
+    // p1 leads on points. Naming p3 first must not lift them over p1 — a
+    // manual order only ever separates players already level.
+    const players = makePlayers(3);
+    const matches: SwissMatch[] = [
+      w('p1', 'p2', 1, 2, 0),
+      w('p1', 'p3', 2, 2, 0),
+    ];
+
+    const standings = computeStandings(players, matches, 'league', [
+      'p3',
+      'p1',
+    ]);
+    expect(standings[0].id).toBe('p1');
+    expect(standings[0].rank).toBe(1);
+  });
+
+  it('leaves a three-way head-to-head cycle sharing one place', () => {
+    // p1 beat p2, p2 beat p3, p3 beat p1 — everyone 1-1 in the mini-league, so
+    // head-to-head scores them equally and no result can rank them.
+    const players = makePlayers(3);
+    const matches: SwissMatch[] = [
+      w('p1', 'p2', 1, 2, 1),
+      w('p2', 'p3', 2, 2, 1),
+      w('p3', 'p1', 3, 2, 1),
+    ];
+    const standings = computeStandings(players, matches, 'league');
+
+    expect(standings.map((r) => r.rank)).toEqual([1, 1, 1]);
+    expect(standings.every((r) => r.tiebreakNeeded)).toBe(true);
   });
 
   it('defaults to swiss ordering (omw-based) with no mode argument', () => {

@@ -38,6 +38,9 @@ interface StandingsTableProps {
   eventDate?: string;
   /** When provided, the performance modal offers an "Edit deck" button. */
   onEditDeck?: (playerId: string) => void;
+  /** Organizer-only: settles a tie no result could, by moving one player past
+   *  the neighbour they share a place with. */
+  onReorderTied?: (playerId: string, direction: 'up' | 'down') => void;
 }
 
 export default function StandingsTable({
@@ -47,6 +50,7 @@ export default function StandingsTable({
   eventName,
   eventDate,
   onEditDeck,
+  onReorderTied,
 }: StandingsTableProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedRow = rows.find((r) => r.id === selectedId) ?? null;
@@ -74,17 +78,69 @@ export default function StandingsTable({
         <tbody>
           {rows.map((r, i) => {
             const player = playerMap[r.id];
+            // Standard competition ranking repeats a shared place on every row
+            // that holds it, so only the first of them prints the number.
+            const showsRank = i === 0 || rows[i - 1].rank !== r.rank;
+            const groupTop = i === 0 || rows[i - 1].tieGroup !== r.tieGroup;
+            const groupEnd =
+              i === rows.length - 1 || rows[i + 1].tieGroup !== r.tieGroup;
             return (
               <tr
                 key={r.id}
                 className="tk-standings-row--expandable"
                 onClick={() => setSelectedId(r.id)}
               >
-                <td className="tk-num">{i + 1}</td>
+                <td className="tk-num">
+                  {showsRank ? r.rank : ''}
+                  {r.tiebreakNeeded && showsRank && (
+                    <span
+                      className="tk-standings-tiemark"
+                      title="Tied — no tiebreak can separate these players"
+                    >
+                      =
+                    </span>
+                  )}
+                </td>
                 <td>
                   <DeckSprites player={player} />
                   {r.name}
+                  {r.manuallyOrdered && (
+                    <span
+                      className="tk-standings-manual"
+                      title="Placed by the organizer: results alone could not separate these players"
+                    >
+                      set
+                    </span>
+                  )}
                   <span className="tk-standings-caret"> ›</span>
+                  {onReorderTied && r.tieGroup !== null && (
+                    <span
+                      className="tk-standings-reorder"
+                      // The row itself opens the performance modal.
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className="tk-btn ghost tk-btn--sm"
+                        disabled={groupTop}
+                        title="Move above the player tied with them"
+                        aria-label={`Move ${r.name} up`}
+                        onClick={() => onReorderTied(r.id, 'up')}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="tk-btn ghost tk-btn--sm"
+                        disabled={groupEnd}
+                        title="Move below the player tied with them"
+                        aria-label={`Move ${r.name} down`}
+                        onClick={() => onReorderTied(r.id, 'down')}
+                      >
+                        ↓
+                      </button>
+                    </span>
+                  )}
                 </td>
                 <td className="tk-num">{r.points}</td>
                 <td className="tk-num">
