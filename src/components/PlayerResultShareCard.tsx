@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import type { Player, StandingRow } from '../engine/tournament';
+import type { Player, StandingRow, StandingsMode } from '../engine/tournament';
 import { formatEventDate } from '../lib/playerResult';
 import PlayerResultDetails from './PlayerResultDetails';
 import PlayerResultTitle from './PlayerResultTitle';
@@ -7,6 +7,8 @@ import PlayerResultTitle from './PlayerResultTitle';
 interface PlayerResultShareCardProps {
   row: StandingRow;
   playerMap: Record<string, Player>;
+  /** Which tiebreakers this event actually ranks on. */
+  mode?: StandingsMode;
   eventName?: string;
   /** ISO timestamp; omitted or unparseable simply drops the date. */
   eventDate?: string;
@@ -30,7 +32,7 @@ const PlayerResultShareCard = forwardRef<
   HTMLDivElement,
   PlayerResultShareCardProps
 >(function PlayerResultShareCard(
-  { row, playerMap, eventName, eventDate },
+  { row, playerMap, mode, eventName, eventDate },
   ref,
 ) {
   const date = formatEventDate(eventDate);
@@ -45,7 +47,7 @@ const PlayerResultShareCard = forwardRef<
             eventName={eventName}
           />
         </div>
-        <PlayerResultDetails row={row} playerMap={playerMap} />
+        <PlayerResultDetails row={row} playerMap={playerMap} mode={mode} />
         <div className="tk-share-card-foot">
           <img
             className="tk-share-card-logo"
