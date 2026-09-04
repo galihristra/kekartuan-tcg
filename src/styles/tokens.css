@@ -1123,9 +1123,14 @@ a.tk-btn {
     font-size: 13.5px;
   }
   /* Tiebreaker columns don't fit a phone; the per-player performance modal
-     carries the same numbers (plus the round-by-round breakdown). */
+     carries the same numbers (plus the round-by-round breakdown). Game
+     differential is the exception: it's a league's first tiebreaker, so it
+     decides visible placings and is short enough to keep. */
   .tk-standings .tk-col-tb {
     display: none;
+  }
+  .tk-standings .tk-col-gameDiff {
+    display: table-cell;
   }
   .tk-deck-slots {
     flex-direction: column;

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import type { Player, StandingRow } from '../engine/tournament';
+import type { Player, StandingRow, StandingsMode } from '../engine/tournament';
 import type { Mode } from '../lib/eventStore';
+import { formatGameDiff } from '../lib/playerResult';
 import DeckSprites from './DeckSprites';
 import PlayerPerformanceModal from './PlayerPerformanceModal';
 
@@ -10,7 +11,7 @@ interface TiebreakColumn {
   cell: (r: StandingRow) => string;
 }
 
-const TIEBREAK_COLUMNS: Record<'swiss' | 'league', TiebreakColumn[]> = {
+const TIEBREAK_COLUMNS: Record<StandingsMode, TiebreakColumn[]> = {
   swiss: [
     { key: 'omw', header: 'OMW%', cell: (r) => (r.omw * 100).toFixed(1) },
     { key: 'gw', header: 'GW%', cell: (r) => (r.gw * 100).toFixed(1) },
@@ -20,7 +21,7 @@ const TIEBREAK_COLUMNS: Record<'swiss' | 'league', TiebreakColumn[]> = {
     {
       key: 'gameDiff',
       header: 'Diff',
-      cell: (r) => (r.gameDiff > 0 ? `+${r.gameDiff}` : String(r.gameDiff)),
+      cell: (r) => formatGameDiff(r.gameDiff),
     },
     { key: 'gw', header: 'GW%', cell: (r) => (r.gw * 100).toFixed(1) },
   ],
@@ -49,7 +50,10 @@ export default function StandingsTable({
 }: StandingsTableProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedRow = rows.find((r) => r.id === selectedId) ?? null;
-  const columns = TIEBREAK_COLUMNS[mode === 'league' ? 'league' : 'swiss'];
+  // Single/double elimination don't render this table at all, so anything
+  // that isn't a league is ranked by Swiss's tiebreakers.
+  const tbMode: StandingsMode = mode === 'league' ? 'league' : 'swiss';
+  const columns = TIEBREAK_COLUMNS[tbMode];
 
   return (
     <div className="tk-table-scroll">
@@ -61,7 +65,7 @@ export default function StandingsTable({
             <th>Pts</th>
             <th>W-D-L</th>
             {columns.map((c) => (
-              <th key={c.key} className="tk-col-tb">
+              <th key={c.key} className={`tk-col-tb tk-col-${c.key}`}>
                 {c.header}
               </th>
             ))}
@@ -87,7 +91,10 @@ export default function StandingsTable({
                   {r.wins}-{r.draws}-{r.losses}
                 </td>
                 {columns.map((c) => (
-                  <td key={c.key} className="tk-num tk-col-tb">
+                  <td
+                    key={c.key}
+                    className={`tk-num tk-col-tb tk-col-${c.key}`}
+                  >
                     {c.cell(r)}
                   </td>
                 ))}
@@ -102,6 +109,7 @@ export default function StandingsTable({
           onClose={() => setSelectedId(null)}
           row={selectedRow}
           playerMap={playerMap}
+          mode={tbMode}
           eventName={eventName}
           eventDate={eventDate}
           onEditDeck={

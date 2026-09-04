@@ -83,6 +83,33 @@ describe('resultStats', () => {
       { label: 'OGW%', value: '40.0' },
     ]);
   });
+
+  it('shows a league the tiebreakers it actually ranks on, and no others', () => {
+    // A league sorts on points, then game differential, then GW% — opponent
+    // strength never gets a say, so listing OMW%/OGW% here would suggest a
+    // placing was decided by a number that took no part in it.
+    const stats = resultStats(
+      row({ mw: 1, gw: 0.75, omw: 0.5, ogw: 0.4, gameDiff: 3 }),
+      'league',
+    );
+
+    expect(stats).toEqual([
+      { label: 'Points', value: '9' },
+      { label: 'W-D-L', value: '3-0-0' },
+      { label: 'Diff', value: '+3' },
+      { label: 'GW%', value: '75.0' },
+    ]);
+  });
+
+  it('signs the game differential so a surplus reads as one', () => {
+    const diffOf = (gameDiff: number) =>
+      resultStats(row({ gameDiff }), 'league').find((s) => s.label === 'Diff')
+        ?.value;
+
+    expect(diffOf(3)).toBe('+3');
+    expect(diffOf(0)).toBe('0');
+    expect(diffOf(-3)).toBe('-3');
+  });
 });
 
 describe('formatEventDate', () => {

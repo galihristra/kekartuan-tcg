@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
-import type { Player, StandingRow } from '../engine/tournament';
+import type { Player, StandingRow, StandingsMode } from '../engine/tournament';
 import { RESULT_LABEL, resultStats, roundHistory } from '../lib/playerResult';
 import DeckSprites from './DeckSprites';
 
 interface PlayerResultDetailsProps {
   row: StandingRow;
   playerMap: Record<string, Player>;
+  /** Which tiebreakers this event actually ranks on. */
+  mode?: StandingsMode;
   /** Slot between the stats grid and the round list. The share card leaves it
    *  empty; the modal puts the admin "Edit deck" button here. */
   afterStats?: ReactNode;
@@ -17,14 +19,18 @@ interface PlayerResultDetailsProps {
 export default function PlayerResultDetails({
   row,
   playerMap,
+  mode = 'swiss',
   afterStats,
 }: PlayerResultDetailsProps) {
   const rounds = roundHistory(row);
+  // Per-round opponent strength is a Swiss tiebreaker. A league never sorts on
+  // it, so printing it under every opponent only suggests it counted.
+  const showOpponentTiebreaks = mode !== 'league';
 
   return (
     <>
       <div className="tk-perf-stats">
-        {resultStats(row).map((s) => (
+        {resultStats(row, mode).map((s) => (
           <div className="tk-perf-stat" key={s.label}>
             <span className="tk-perf-stat-label">{s.label}</span>
             <span className="tk-perf-stat-value">{s.value}</span>
@@ -55,11 +61,18 @@ export default function PlayerResultDetails({
                       ? (opp?.name ?? 'Unknown')
                       : 'Bye (no opponent)'}
                   </span>
-                  {e.mw !== null && e.gw !== null && (
+                  {showOpponentTiebreaks && e.mw !== null && e.gw !== null ? (
                     <span className="tk-perf-round-tb">
                       Opp MW {(e.mw * 100).toFixed(1)}% · Opp GW{' '}
                       {(e.gw * 100).toFixed(1)}%{e.forfeited && ' · forfeit'}
                     </span>
+                  ) : (
+                    // A forfeit explains an otherwise unearned-looking result,
+                    // so it still has to show once the tiebreakers above it are
+                    // gone.
+                    e.forfeited && (
+                      <span className="tk-perf-round-tb">forfeit</span>
+                    )
                   )}
                 </span>
                 <span
