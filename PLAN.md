@@ -99,6 +99,8 @@ TODO / follow-ups for Phase 2:
       free tab-switch, so archives are unambiguous.
 - [ ] Last-write-wins only; no multi-device conflict handling (fine for a
       single organizer — revisit if Phase 3 adds concurrent editors).
+      **Now being addressed** — Phase 3 did add concurrent editors. See
+      [Multi-admin live sync](./docs/roadmap/multi-admin-live-sync.md).
 
 ### Phase 3 — Admin auth & view-only participants (current)
 
@@ -132,6 +134,11 @@ check standings/pairings after their own match finishes — manual refresh
 on Phase 3's read-only participant view is enough. Revisit only if event
 sizes/formats change this assumption (e.g. very fast rounds).
 
+Still true for *participants*. It turned out not to cover *organizers*, who
+write concurrently — for them a stale view is silent data loss, not an
+inconvenience. That's Phase 6, which gives admins a live socket and
+participants a Refresh button rather than reopening this.
+
 ### Phase 5 — Polish (next)
 
 - Tiebreaker display detail — show the breakdown, not just the number,
@@ -139,6 +146,19 @@ sizes/formats change this assumption (e.g. very fast rounds).
 
 (Print/export of pairings and standings was considered and dropped — not
 needed.)
+
+### Phase 6 — Multi-admin live sync (planned)
+
+Several organizers now run the same event at once, and the whole-blob
+`events.state` write means the last autosave silently wins — a co-organizer's
+round of results can disappear with no error. Adds a `version` precondition so a
+stale write fails instead of clobbering, a rebase-on-conflict commit queue so two
+admins reporting different tables both succeed, and Supabase Realtime so admins
+stop refreshing. Participants get a Refresh button above the standings instead of
+a socket.
+
+Full write-up, including why TanStack Query was rejected:
+[docs/roadmap/multi-admin-live-sync.md](./docs/roadmap/multi-admin-live-sync.md).
 
 ## Immediate next steps for this session
 

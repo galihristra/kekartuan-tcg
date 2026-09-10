@@ -1,7 +1,9 @@
 # Event System
 
 Tournament pairing/bracket engine for a TCG store platform. See
-[PLAN.md](./PLAN.md) for roadmap and architecture decisions.
+[PLAN.md](./PLAN.md) for the roadmap and architecture decisions, and
+[docs/roadmap/](./docs/roadmap/) for the detailed write-up behind any phase
+that has one.
 
 ## Getting started
 
