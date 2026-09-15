@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Player, StandingRow } from '../engine/tournament';
+import type { Player, StandingRow, StandingsMode } from '../engine/tournament';
 import { useShareImage } from '../hooks/useShareImage';
 import {
   browserShareTargets,
@@ -19,6 +19,9 @@ interface PlayerPerformanceModalProps {
   onClose: () => void;
   row: StandingRow;
   playerMap: Record<string, Player>;
+  /** Which tiebreakers this event actually ranks on, so the stat grid shows
+   *  the numbers that decided this player's place and no others. */
+  mode?: StandingsMode;
   /** Shown above the player's name so a shared picture of this modal says which
    *  event the result belongs to. */
   eventName?: string;
@@ -44,6 +47,7 @@ export default function PlayerPerformanceModal({
   onClose,
   row,
   playerMap,
+  mode,
   eventName,
   eventDate,
   onEditDeck,
@@ -181,6 +185,7 @@ export default function PlayerPerformanceModal({
           <PlayerResultDetails
             row={row}
             playerMap={playerMap}
+            mode={mode}
             afterStats={
               onEditDeck && (
                 <button
@@ -199,6 +204,7 @@ export default function PlayerPerformanceModal({
         ref={cardRef}
         row={row}
         playerMap={playerMap}
+        mode={mode}
         eventName={eventName}
         eventDate={eventDate}
       />

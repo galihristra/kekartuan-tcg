@@ -61,6 +61,10 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
   const [roundsInput, setRoundsInput] = useState('3');
   const [eventFinished, setEventFinished] = useState(false);
 
+  // The organizer's ordering of players nothing could separate. Empty until a
+  // tie actually needs settling.
+  const [standingsOrder, setStandingsOrder] = useState<string[]>([]);
+
   const [singleBracket, setSingleBracket] =
     useState<SingleEliminationBracket | null>(null);
   const [doubleBracket, setDoubleBracket] =
@@ -93,6 +97,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     setEventFinished(s.eventFinished);
     setSingleBracket(s.singleBracket);
     setDoubleBracket(s.doubleBracket);
+    setStandingsOrder(s.standingsOrder ?? []);
   }, []);
 
   useEffect(() => {
@@ -161,6 +166,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
       eventFinished,
       singleBracket,
       doubleBracket,
+      standingsOrder,
     };
     const t = setTimeout(() => {
       saveEvent(eventId, {
@@ -185,6 +191,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     eventFinished,
     singleBracket,
     doubleBracket,
+    standingsOrder,
     eventName,
     eventDescription,
     eventLocation,
@@ -401,9 +408,32 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
         players,
         matchesThroughRound(matches, round),
         mode === 'league' ? 'league' : 'swiss',
+        standingsOrder,
       ),
-    [players, matches, mode, round],
+    [players, matches, mode, round, standingsOrder],
   );
+
+  /** Moves one player past the neighbour they share a place with. Only ever
+   *  called for rows the standings flagged as needing a tiebreak, and it
+   *  records the whole tied group so the ordering survives a reload — a
+   *  partial list would leave the rest of the group unsettled. */
+  const reorderTiedPlayer = (playerId: string, direction: 'up' | 'down') => {
+    const group = standings.find((r) => r.id === playerId)?.tieGroup;
+    if (group == null) return;
+    const tied = standings.filter((r) => r.tieGroup === group);
+    const from = tied.findIndex((r) => r.id === playerId);
+    const to = direction === 'up' ? from - 1 : from + 1;
+    if (from === -1 || to < 0 || to >= tied.length) return;
+    const ids = tied.map((r) => r.id);
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    setStandingsOrder((prev) => [
+      ...prev.filter((id) => !ids.includes(id)),
+      ...ids,
+    ]);
+  };
+
+  /** Drops the organizer's ordering, putting every tie back to shared places. */
+  const clearStandingsOrder = () => setStandingsOrder([]);
 
   const genSingle = () =>
     setSingleBracket(createSingleEliminationBracket(players));
@@ -480,6 +510,9 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     // league
     reportLeagueGame,
     reportLeagueDraw,
+    standingsOrder,
+    reorderTiedPlayer,
+    clearStandingsOrder,
 
     // brackets
     singleBracket,

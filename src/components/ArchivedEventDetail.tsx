@@ -117,14 +117,23 @@ export default function ArchivedEventDetail({
     event.state.players,
     matchesThroughRound(event.state.matches, event.state.round),
     event.state.mode === 'league' ? 'league' : 'swiss',
+    // Placings the organizer settled by hand are part of the result, so an
+    // archived table has to reproduce them rather than fall back to a tie.
+    event.state.standingsOrder ?? [],
   );
 
   return (
     <>
       {event.state.eventFinished ? (
         <div className="tk-champion">
-          🏆 <b className="tk-gold">{standings[0]?.name ?? '—'}</b> —{' '}
-          {event.name}
+          🏆{' '}
+          <b className="tk-gold">
+            {standings
+              .filter((r) => r.rank === 1)
+              .map((r) => r.name)
+              .join(' & ') || '—'}
+          </b>{' '}
+          — {event.name}
         </div>
       ) : (
         <div className="tk-champion">

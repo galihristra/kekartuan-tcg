@@ -1,4 +1,4 @@
-import type { StandingRow } from '../engine/tournament';
+import type { StandingRow, StandingsMode } from '../engine/tournament';
 
 /** One played round, either against an opponent or a bye. */
 export interface RoundEntry {
@@ -20,6 +20,12 @@ export interface ResultStat {
 }
 
 export const RESULT_LABEL = { W: 'Win', D: 'Draw', L: 'Loss' } as const;
+
+/** Game differential reads as a signed number, so "+3" is visibly a surplus
+ *  rather than a count of anything. */
+export function formatGameDiff(diff: number): string {
+  return diff > 0 ? `+${diff}` : String(diff);
+}
 
 /** Opponents and byes are tracked separately on a `StandingRow` (byes have no
  *  opponent and are excluded from the tiebreaker averages), so merge them back
@@ -48,10 +54,33 @@ export function roundHistory(row: StandingRow): RoundEntry[] {
   ].sort((a, b) => a.round - b.round);
 }
 
-export function resultStats(row: StandingRow): ResultStat[] {
-  return [
+/**
+ * The stat grid for one player, listing exactly the numbers their format
+ * ranks on and in the order the comparator reads them (see `computeStandings`).
+ *
+ * A league is a full round-robin, so every player faces the same field and
+ * opponent strength carries no signal — it sorts on points, then game
+ * differential, then GW%, and never looks at OMW%/OGW%. Showing those two
+ * anyway invites the obvious misreading: two players level on points and
+ * differential appear to have been split by an OGW% that had no say in it.
+ */
+export function resultStats(
+  row: StandingRow,
+  mode: StandingsMode = 'swiss',
+): ResultStat[] {
+  const base: ResultStat[] = [
     { label: 'Points', value: String(row.points) },
     { label: 'W-D-L', value: `${row.wins}-${row.draws}-${row.losses}` },
+  ];
+  if (mode === 'league') {
+    return [
+      ...base,
+      { label: 'Diff', value: formatGameDiff(row.gameDiff) },
+      { label: 'GW%', value: (row.gw * 100).toFixed(1) },
+    ];
+  }
+  return [
+    ...base,
     { label: 'MW%', value: (row.mw * 100).toFixed(1) },
     { label: 'GW%', value: (row.gw * 100).toFixed(1) },
     { label: 'OMW%', value: (row.omw * 100).toFixed(1) },

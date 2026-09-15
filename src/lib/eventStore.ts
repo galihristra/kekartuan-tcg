@@ -18,6 +18,9 @@ export interface EventState {
   eventFinished: boolean;
   singleBracket: SingleEliminationBracket | null;
   doubleBracket: DoubleEliminationBracket | null;
+  /** Player ids, best-first, ordering players no tiebreak could separate.
+   *  Optional: events saved before this existed simply have no overrides. */
+  standingsOrder?: string[];
 }
 
 /** Free-text info shown alongside the event (start time, prizes, rules) —

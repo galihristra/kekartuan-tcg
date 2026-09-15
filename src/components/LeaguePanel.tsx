@@ -21,6 +21,12 @@ interface LeaguePanelProps {
   onReportGame: (match: SwissMatch, winner: 'p1' | 'p2') => void;
   onDraw: (match: SwissMatch) => void;
   onEditMatch: (match: SwissMatch) => void;
+  /** Organizer-only: settles a tie no result could. */
+  onReorderTied: (playerId: string, direction: 'up' | 'down') => void;
+  /** Organizer-only: drops every manual placing, restoring shared places. */
+  onClearTieOrder: () => void;
+  /** Whether any manual placing is currently in effect. */
+  hasTieOrder: boolean;
 }
 
 export default function LeaguePanel({
@@ -41,7 +47,26 @@ export default function LeaguePanel({
   onReportGame,
   onDraw,
   onEditMatch,
+  onReorderTied,
+  onClearTieOrder,
+  hasTieOrder,
 }: LeaguePanelProps) {
+  // Everyone sharing the top place: a tie no result could break means the
+  // league genuinely has joint winners until the organizer settles it.
+  const champions = standings.filter((r) => r.rank === 1);
+  const unsettled = standings.filter((r) => r.tiebreakNeeded);
+
+  const tieNotice = unsettled.length > 0 && (
+    <div className="tk-tie-notice">
+      <b>Tied on every tiebreak.</b> {unsettled.map((r) => r.name).join(', ')}{' '}
+      cannot be separated by points, game differential, game win % or
+      head-to-head.
+      {isAdmin
+        ? ' Use the arrows in the standings to set their places after a playoff or a draw.'
+        : ' The organizer will settle the placings.'}
+    </div>
+  );
+
   if (eventFinished) {
     return (
       <div className="tk-panel">
@@ -54,9 +79,13 @@ export default function LeaguePanel({
           )}
         </div>
         <div className="tk-champion">
-          🏆 <b className="tk-gold">{standings[0]?.name ?? '—'}</b> wins the
-          league
+          🏆{' '}
+          <b className="tk-gold">
+            {champions.map((r) => r.name).join(' & ') || '—'}
+          </b>{' '}
+          {champions.length > 1 ? 'share the league' : 'wins the league'}
         </div>
+        {tieNotice}
         <h3 className="tk-section-title">Final Standings</h3>
         <StandingsTable
           rows={standings}
@@ -64,7 +93,13 @@ export default function LeaguePanel({
           mode="league"
           eventName={eventName}
           eventDate={eventDate}
+          onReorderTied={isAdmin ? onReorderTied : undefined}
         />
+        {isAdmin && hasTieOrder && (
+          <button className="tk-btn ghost tk-btn--sm" onClick={onClearTieOrder}>
+            Clear organizer placings
+          </button>
+        )}
       </div>
     );
   }
@@ -166,13 +201,23 @@ export default function LeaguePanel({
       {matches.length > 0 && (
         <div className="tk-standings-block">
           <h3 className="tk-section-title">Standings</h3>
+          {tieNotice}
           <StandingsTable
             rows={standings}
             playerMap={playerMap}
             mode="league"
             eventName={eventName}
             eventDate={eventDate}
+            onReorderTied={isAdmin ? onReorderTied : undefined}
           />
+          {isAdmin && hasTieOrder && (
+            <button
+              className="tk-btn ghost tk-btn--sm"
+              onClick={onClearTieOrder}
+            >
+              Clear organizer placings
+            </button>
+          )}
         </div>
       )}
     </div>

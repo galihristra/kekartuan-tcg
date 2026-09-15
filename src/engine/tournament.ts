@@ -66,6 +66,21 @@ export interface StandingRow {
   opponents: OpponentBreakdown[];
   /** Rounds the player sat out with a bye (counted as a win, no opponent). */
   byeRounds: number[];
+  /** Placing under standard competition ranking: players nothing separates
+   *  share the higher place and the places they fill are skipped, so a tie for
+   *  1st reads 1, 1, 3 — the way a sports table does it. */
+  rank: number;
+  /** No tiebreak could separate this player from someone sharing their rank.
+   *  The organizer has to settle it (a playoff, a draw) before prizes. */
+  tiebreakNeeded: boolean;
+  /** This player's place inside an otherwise unbreakable tie was set by the
+   *  organizer rather than by results. */
+  manuallyOrdered: boolean;
+  /** Identifies the set of players no tiebreak could separate from this one,
+   *  or null when nothing is tied with them. It stays stable once an organizer
+   *  orders the group, which is what lets them keep adjusting it — `rank` and
+   *  `tiebreakNeeded` both stop marking the tie at that point. */
+  tieGroup: number | null;
 }
 
 export interface SwissPairing {
@@ -173,10 +188,19 @@ interface PlayerStat {
 
 export type StandingsMode = 'swiss' | 'league';
 
+/**
+ * The standings table for one event.
+ *
+ * `manualOrder` is the organizer's own ordering of players a tiebreak could
+ * not separate, listed best-first. It is consulted only inside a tied group,
+ * so it can settle a 2nd/3rd prize without letting anyone jump a player they
+ * genuinely finished behind.
+ */
 function computeStandings(
   players: Player[],
   matches: SwissMatch[],
   mode: StandingsMode = 'swiss',
+  manualOrder: string[] = [],
 ): StandingRow[] {
   const stats: Record<string, PlayerStat> = {};
   players.forEach((p) => {
@@ -293,16 +317,132 @@ function computeStandings(
         gw: gw(o.id),
       })),
       byeRounds: s.byeRounds,
+      // Stamped by `orderStandings` once every row exists to compare against.
+      rank: 0,
+      tiebreakNeeded: false,
+      manuallyOrdered: false,
+      tieGroup: null,
     };
   });
 
-  rows.sort(
-    mode === 'league'
-      ? (a, b) => b.points - a.points || b.gameDiff - a.gameDiff || b.gw - a.gw
-      : (a, b) =>
-          b.points - a.points || b.omw - a.omw || b.gw - a.gw || b.ogw - a.ogw,
-  );
-  return rows;
+  return orderStandings(rows, mode, manualOrder);
+}
+
+/**
+ * The values a format ranks on, most significant first. Two players level on
+ * every one of them are tied as far as their results can show.
+ *
+ * A league is a full round-robin, so everyone faces the same field and
+ * opponent strength carries no signal — it never reads OMW%/OGW%.
+ */
+function tiebreakKey(row: StandingRow, mode: StandingsMode): number[] {
+  return mode === 'league'
+    ? [row.points, row.gameDiff, row.gw]
+    : [row.points, row.omw, row.gw, row.ogw];
+}
+
+function compareKeys(a: number[], b: number[]): number {
+  for (let i = 0; i < a.length; i++) {
+    if (b[i] !== a[i]) return b[i] - a[i];
+  }
+  return 0;
+}
+
+/**
+ * Match points a player took from the others they are tied with and from
+ * nobody else — the "mini-league" a sports table falls back on.
+ *
+ * A completed round-robin has every tied pair meeting exactly once, so this
+ * usually settles it. Two cases it cannot settle, both left to the organizer:
+ * a cycle (A beat B beat C beat A) scores everyone equally, and a tie that
+ * shows up mid-league between players who have yet to be paired.
+ */
+function headToHeadPoints(row: StandingRow, group: Set<string>): number {
+  return row.opponents.reduce((sum, o) => {
+    if (!group.has(o.id)) return sum;
+    if (o.result === 'W') return sum + MATCH_POINTS.win;
+    if (o.result === 'D') return sum + MATCH_POINTS.draw;
+    return sum;
+  }, 0);
+}
+
+/**
+ * Orders the table and stamps each row's place.
+ *
+ * Head-to-head is applied as a mini-league within each tied group rather than
+ * as a pairwise comparison inside the sort: a cycle makes pairwise
+ * head-to-head intransitive, and an intransitive comparator gives
+ * `Array.prototype.sort` licence to return anything at all.
+ *
+ * `manualOrder` only ever separates players a tiebreak already failed to, so
+ * it cannot lift anyone above someone they actually finished behind.
+ */
+function orderStandings(
+  rows: StandingRow[],
+  mode: StandingsMode,
+  manualOrder: string[],
+): StandingRow[] {
+  const manualIndex = new Map(manualOrder.map((id, i) => [id, i]));
+  const h2h = new Map<string, number>();
+
+  rows.sort((a, b) => compareKeys(tiebreakKey(a, mode), tiebreakKey(b, mode)));
+
+  // Resolve each run of rows that the format's own tiebreaks left level.
+  const ordered: StandingRow[] = [];
+  for (let i = 0; i < rows.length;) {
+    const key = tiebreakKey(rows[i], mode);
+    let j = i + 1;
+    while (
+      j < rows.length &&
+      compareKeys(tiebreakKey(rows[j], mode), key) === 0
+    ) {
+      j++;
+    }
+    const group = rows.slice(i, j);
+    if (group.length > 1) {
+      const ids = new Set(group.map((r) => r.id));
+      group.forEach((r) => h2h.set(r.id, headToHeadPoints(r, ids)));
+      group.sort((a, b) => {
+        const byHeadToHead = h2h.get(b.id)! - h2h.get(a.id)!;
+        if (byHeadToHead !== 0) return byHeadToHead;
+        const ma = manualIndex.get(a.id);
+        const mb = manualIndex.get(b.id);
+        // Only an ordering that covers both players says anything about which
+        // of the two comes first.
+        if (ma !== undefined && mb !== undefined) return ma - mb;
+        return 0;
+      });
+    }
+    ordered.push(...group);
+    i = j;
+  }
+
+  // Standard competition ranking over what nothing could separate.
+  const level = (a: StandingRow, b: StandingRow): boolean =>
+    compareKeys(tiebreakKey(a, mode), tiebreakKey(b, mode)) === 0 &&
+    (h2h.get(a.id) ?? 0) === (h2h.get(b.id) ?? 0);
+
+  let tieGroup = 0;
+  for (let i = 0; i < ordered.length;) {
+    let j = i + 1;
+    while (j < ordered.length && level(ordered[i], ordered[j])) j++;
+    const place = ordered.slice(i, j);
+    const tied = place.length > 1;
+    const settledByOrganizer =
+      tied && place.every((r) => manualIndex.has(r.id));
+    place.forEach((r, k) => {
+      // An organizer who ordered the whole group has decided the places, so
+      // they stop sharing one and the table stops asking for a tiebreak.
+      r.rank = settledByOrganizer ? i + k + 1 : i + 1;
+      r.tiebreakNeeded = tied && !settledByOrganizer;
+      r.manuallyOrdered = settledByOrganizer;
+      r.tieGroup = tied ? tieGroup : null;
+    });
+    if (tied) tieGroup++;
+    i = j;
+  }
+
+  return ordered;
 }
 
 // ===================== Swiss pairing =====================

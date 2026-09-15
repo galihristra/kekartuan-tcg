@@ -218,6 +218,9 @@ export default function CurrentEventPage({
               onEditMatch={(m) =>
                 ev.reportSwiss(m, { result: null, p1Games: 0, p2Games: 0 })
               }
+              onReorderTied={ev.reorderTiedPlayer}
+              onClearTieOrder={ev.clearStandingsOrder}
+              hasTieOrder={ev.standingsOrder.length > 0}
             />
           )}
 
