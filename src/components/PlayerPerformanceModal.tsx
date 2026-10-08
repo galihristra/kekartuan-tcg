@@ -6,6 +6,7 @@ import {
   canCopyImage,
   canShareImageFile,
   copyImageToClipboard,
+  downloadImage,
   resultImageFilename,
   resultShareText,
   shareOrSaveImage,
@@ -99,11 +100,17 @@ export default function PlayerPerformanceModal({
     });
   }
 
+  function download() {
+    if (!image) return;
+    downloadImage(image);
+  }
+
   const shareLabel =
     status === 'rendering' ? 'Preparing image…' : 'Share this result';
   // Chrome on desktop Linux and macOS has `navigator.share` but won't take
-  // files, so the primary button says what it will actually do.
-  const handOffLabel = image && canShareImageFile(image) ? 'Share' : 'Save';
+  // files, so Share only shows where it will actually open a share sheet, and
+  // Download takes over as the primary button everywhere else.
+  const canShare = !!image && canShareImageFile(image);
 
   return (
     <Modal
@@ -121,7 +128,7 @@ export default function PlayerPerformanceModal({
         status === 'idle' || status === 'rendering' ? (
           <button
             type="button"
-            className="tk-btn ghost tk-icon-btn"
+            className="tk-btn ghost tk-icon-btn tk-icon-btn--labeled"
             onClick={render}
             disabled={status === 'rendering'}
             title={shareLabel}
@@ -132,6 +139,7 @@ export default function PlayerPerformanceModal({
             ) : (
               <ShareIcon />
             )}
+            <span>Share</span>
           </button>
         ) : null
       }
@@ -149,13 +157,22 @@ export default function PlayerPerformanceModal({
             alt={`${row.name}'s result as a shareable image`}
           />
           <div className="tk-share-preview-actions">
+            {canShare && (
+              <button
+                className="tk-btn"
+                onClick={handOff}
+                disabled={handingOff}
+                type="button"
+              >
+                Share
+              </button>
+            )}
             <button
-              className="tk-btn"
-              onClick={handOff}
-              disabled={handingOff}
+              className={canShare ? 'tk-btn ghost' : 'tk-btn'}
+              onClick={download}
               type="button"
             >
-              {handOffLabel}
+              Download
             </button>
             {canCopyImage() && (
               <button
