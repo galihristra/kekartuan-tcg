@@ -128,7 +128,7 @@ export default function PlayerPerformanceModal({
         status === 'idle' || status === 'rendering' ? (
           <button
             type="button"
-            className="tk-btn ghost tk-icon-btn"
+            className="tk-btn ghost tk-icon-btn tk-icon-btn--labeled"
             onClick={render}
             disabled={status === 'rendering'}
             title={shareLabel}
@@ -139,6 +139,7 @@ export default function PlayerPerformanceModal({
             ) : (
               <ShareIcon />
             )}
+            <span>Share</span>
           </button>
         ) : null
       }

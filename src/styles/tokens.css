@@ -810,6 +810,17 @@ a.tk-btn {
   width: 18px;
   height: 18px;
 }
+/* Icon plus a short word, for an action the icon alone doesn't explain. Keeps
+   the icon button's height so it still lines up with the rest of the header. */
+.tk-icon-btn--labeled {
+  width: auto;
+  gap: 6px;
+  padding: 0 10px;
+}
+.tk-icon-btn--labeled svg {
+  width: 16px;
+  height: 16px;
+}
 .tk-eventname {
   width: 100%;
   background: var(--card);
