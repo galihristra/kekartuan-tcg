@@ -153,15 +153,18 @@ export function browserShareTargets(): ShareTargets {
         title: image.title,
         text: image.text,
       }),
-    saveFile: (image) => {
-      const url = URL.createObjectURL(image.blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = image.filename;
-      link.click();
-      // Safari needs the URL to outlive the click, so release it on the next
-      // turn of the event loop rather than immediately.
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-    },
+    saveFile: downloadImage,
   };
+}
+
+/** Saves the image to the device as a regular download. */
+export function downloadImage(image: ShareImage): void {
+  const url = URL.createObjectURL(image.blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = image.filename;
+  link.click();
+  // Safari needs the URL to outlive the click, so release it on the next
+  // turn of the event loop rather than immediately.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

@@ -1690,7 +1690,7 @@ a.tk-btn {
   border-radius: 10px;
   border: 1px solid var(--border);
 }
-/* Two or three buttons depending on what the platform can do, so they share the
+/* Three or four buttons depending on what the platform can do, so they share the
    row evenly and wrap to a second line rather than squeezing on a narrow phone. */
 .tk-share-preview-actions {
   display: flex;
