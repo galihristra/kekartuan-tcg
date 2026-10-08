@@ -17,8 +17,8 @@ const MODE_LABELS: Record<Mode, string> = {
 const SELECTABLE_MODES: Mode[] = ['swiss', 'league'];
 
 const MATCH_FORMAT_LABELS: Record<MatchFormat, string> = {
-  bo1: 'Best of 1',
-  bo3: 'Best of 3',
+  bo1: 'Bo1',
+  bo3: 'Bo3',
 };
 
 interface EventSidebarProps {

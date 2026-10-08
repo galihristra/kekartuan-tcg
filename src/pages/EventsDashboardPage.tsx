@@ -23,8 +23,8 @@ function modeLabel(mode: Mode): string {
 }
 
 const MATCH_FORMAT_OPTIONS: [MatchFormat, string][] = [
-  ['bo1', 'Best of 1'],
-  ['bo3', 'Best of 3'],
+  ['bo1', 'Bo1'],
+  ['bo3', 'Bo3'],
 ];
 
 function progressLabel(ev: ArchivedEventSummary): string {
