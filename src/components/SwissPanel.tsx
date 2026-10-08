@@ -1,4 +1,10 @@
-import type { Player, StandingRow, SwissMatch } from '../engine/tournament';
+import type {
+  MatchFormat,
+  Player,
+  StandingRow,
+  StandingsMode,
+  SwissMatch,
+} from '../engine/tournament';
 import PairingTicket from './PairingTicket';
 import StandingsTable from './StandingsTable';
 
@@ -16,6 +22,9 @@ interface SwissPanelProps {
   eventName: string;
   /** ISO timestamp, dated into the footer of a shared result image. */
   eventDate?: string;
+  matchFormat: MatchFormat;
+  /** Which tiebreakers the standings rank on — follows `matchFormat`. */
+  standingsMode: StandingsMode;
   onStartRound: () => void;
   onFinishEvent: () => void;
   onNewEvent: () => void;
@@ -57,6 +66,8 @@ export default function SwissPanel({
   roundsValid,
   eventName,
   eventDate,
+  matchFormat,
+  standingsMode,
   onStartRound,
   onFinishEvent,
   onNewEvent,
@@ -82,6 +93,7 @@ export default function SwissPanel({
         <StandingsTable
           rows={standings}
           playerMap={playerMap}
+          mode={standingsMode}
           eventName={eventName}
           eventDate={eventDate}
         />
@@ -187,6 +199,7 @@ export default function SwissPanel({
                 match={m}
                 onReport={(patch) => onReportSwiss(m, patch)}
                 readOnly={!isAdmin}
+                matchFormat={matchFormat}
               />
               {isRematch(matches, round, m) && (
                 <div className="tk-hint tk-rematch-warning">
@@ -242,6 +255,7 @@ export default function SwissPanel({
           <StandingsTable
             rows={standings}
             playerMap={playerMap}
+            mode={standingsMode}
             eventName={eventName}
             eventDate={eventDate}
           />

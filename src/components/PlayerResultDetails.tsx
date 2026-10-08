@@ -26,6 +26,9 @@ export default function PlayerResultDetails({
   // Per-round opponent strength is a Swiss tiebreaker. A league never sorts on
   // it, so printing it under every opponent only suggests it counted.
   const showOpponentTiebreaks = mode !== 'league';
+  // A Best of 1 score is always 1–0, which says nothing the W/L doesn't, and
+  // its opponents' GW% only echoes their MW%.
+  const bestOf1 = mode === 'swiss-bo1';
 
   return (
     <>
@@ -47,7 +50,8 @@ export default function PlayerResultDetails({
         <ul className="tk-perf-rounds">
           {rounds.map((e) => {
             const opp = e.opponentId ? playerMap[e.opponentId] : undefined;
-            const hasScore = e.gamesFor !== null && e.gamesAgainst !== null;
+            const hasScore =
+              !bestOf1 && e.gamesFor !== null && e.gamesAgainst !== null;
             return (
               <li
                 className={`tk-perf-round tk-perf-round--${e.result}`}
@@ -63,8 +67,9 @@ export default function PlayerResultDetails({
                   </span>
                   {showOpponentTiebreaks && e.mw !== null && e.gw !== null ? (
                     <span className="tk-perf-round-tb">
-                      Opp MW {(e.mw * 100).toFixed(1)}% · Opp GW{' '}
-                      {(e.gw * 100).toFixed(1)}%{e.forfeited && ' · forfeit'}
+                      Opp MW {(e.mw * 100).toFixed(1)}%
+                      {!bestOf1 && ` · Opp GW ${(e.gw * 100).toFixed(1)}%`}
+                      {e.forfeited && ' · forfeit'}
                     </span>
                   ) : (
                     // A forfeit explains an otherwise unearned-looking result,

@@ -322,6 +322,13 @@ html[data-theme='light'] .tk-root {
   padding: 7px 8px;
   font-size: 13px;
 }
+.tk-create-event .tk-add {
+  /* Name, format, match format and Create don't fit one phone-width row. */
+  flex-wrap: wrap;
+}
+.tk-create-event .tk-add input {
+  flex-basis: 180px;
+}
 .tk-btn {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 600;

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { Player, StandingRow, StandingsMode } from '../engine/tournament';
-import type { Mode } from '../lib/eventStore';
 import { formatGameDiff } from '../lib/playerResult';
 import DeckSprites from './DeckSprites';
 import PlayerPerformanceModal from './PlayerPerformanceModal';
@@ -17,6 +16,12 @@ const TIEBREAK_COLUMNS: Record<StandingsMode, TiebreakColumn[]> = {
     { key: 'gw', header: 'GW%', cell: (r) => (r.gw * 100).toFixed(1) },
     { key: 'ogw', header: 'OGW%', cell: (r) => (r.ogw * 100).toFixed(1) },
   ],
+  // One game a match leaves GW%/OGW% repeating MW%/OMW%, so Best of 1 shows
+  // the opponents'-opponents number it actually ranks on instead.
+  'swiss-bo1': [
+    { key: 'omw', header: 'OMW%', cell: (r) => (r.omw * 100).toFixed(1) },
+    { key: 'oomw', header: 'OOMW%', cell: (r) => (r.oomw * 100).toFixed(1) },
+  ],
   league: [
     {
       key: 'gameDiff',
@@ -30,8 +35,8 @@ const TIEBREAK_COLUMNS: Record<StandingsMode, TiebreakColumn[]> = {
 interface StandingsTableProps {
   rows: StandingRow[];
   playerMap: Record<string, Player>;
-  /** Which tiebreak columns to show. Non-league modes (single/double elim don't use this table) fall back to Swiss's columns. */
-  mode?: Mode;
+  /** Which tiebreak columns to show. Single/double elim don't use this table. */
+  mode?: StandingsMode;
   /** Titles the performance modal, so a shared screenshot names the event. */
   eventName?: string;
   /** ISO timestamp, dated into the footer of a shared result image. */
@@ -54,10 +59,9 @@ export default function StandingsTable({
 }: StandingsTableProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedRow = rows.find((r) => r.id === selectedId) ?? null;
-  // Single/double elimination don't render this table at all, so anything
-  // that isn't a league is ranked by Swiss's tiebreakers.
-  const tbMode: StandingsMode = mode === 'league' ? 'league' : 'swiss';
-  const columns = TIEBREAK_COLUMNS[tbMode];
+  const columns = TIEBREAK_COLUMNS[mode];
+  // Best of 1 has no draws, so the record reads W-L.
+  const showDraws = mode !== 'swiss-bo1';
 
   return (
     <div className="tk-table-scroll">
@@ -67,7 +71,7 @@ export default function StandingsTable({
             <th>#</th>
             <th>Player</th>
             <th>Pts</th>
-            <th>W-D-L</th>
+            <th>{showDraws ? 'W-D-L' : 'W-L'}</th>
             {columns.map((c) => (
               <th key={c.key} className={`tk-col-tb tk-col-${c.key}`}>
                 {c.header}
@@ -144,7 +148,9 @@ export default function StandingsTable({
                 </td>
                 <td className="tk-num">{r.points}</td>
                 <td className="tk-num">
-                  {r.wins}-{r.draws}-{r.losses}
+                  {showDraws
+                    ? `${r.wins}-${r.draws}-${r.losses}`
+                    : `${r.wins}-${r.losses}`}
                 </td>
                 {columns.map((c) => (
                   <td
@@ -165,7 +171,7 @@ export default function StandingsTable({
           onClose={() => setSelectedId(null)}
           row={selectedRow}
           playerMap={playerMap}
-          mode={tbMode}
+          mode={mode}
           eventName={eventName}
           eventDate={eventDate}
           onEditDeck={

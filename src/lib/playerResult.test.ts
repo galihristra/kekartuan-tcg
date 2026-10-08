@@ -31,6 +31,7 @@ function row(overrides: Partial<StandingRow> = {}): StandingRow {
     gw: 0.75,
     omw: 0.5,
     ogw: 0.4,
+    oomw: 0.45,
     gameDiff: 3,
     opponents: [],
     byeRounds: [],
@@ -102,6 +103,22 @@ describe('resultStats', () => {
       { label: 'W-D-L', value: '3-0-0' },
       { label: 'Diff', value: '+3' },
       { label: 'GW%', value: '75.0' },
+    ]);
+  });
+
+  it('shows Best of 1 a W-L record and the opponents tiebreaks it ranks on', () => {
+    // One game a match: no draws, and GW%/OGW% would only repeat MW%/OMW%.
+    const stats = resultStats(
+      row({ wins: 2, losses: 1, mw: 2 / 3, omw: 0.5, oomw: 0.45 }),
+      'swiss-bo1',
+    );
+
+    expect(stats).toEqual([
+      { label: 'Points', value: '9' },
+      { label: 'W-L', value: '2-1' },
+      { label: 'MW%', value: '66.7' },
+      { label: 'OMW%', value: '50.0' },
+      { label: 'OOMW%', value: '45.0' },
     ]);
   });
 
