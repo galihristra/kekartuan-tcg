@@ -68,6 +68,16 @@ export function resultStats(
   row: StandingRow,
   mode: StandingsMode = 'swiss',
 ): ResultStat[] {
+  if (mode === 'swiss-bo1') {
+    // No draws, and GW%/OGW% only echo MW%/OMW% when every match is one game.
+    return [
+      { label: 'Points', value: String(row.points) },
+      { label: 'W-L', value: `${row.wins}-${row.losses}` },
+      { label: 'MW%', value: (row.mw * 100).toFixed(1) },
+      { label: 'OMW%', value: (row.omw * 100).toFixed(1) },
+      { label: 'OOMW%', value: (row.oomw * 100).toFixed(1) },
+    ];
+  }
   const base: ResultStat[] = [
     { label: 'Points', value: String(row.points) },
     { label: 'W-D-L', value: `${row.wins}-${row.draws}-${row.losses}` },

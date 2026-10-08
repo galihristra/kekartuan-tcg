@@ -61,6 +61,9 @@ export interface StandingRow {
   gw: number;
   omw: number;
   ogw: number;
+  /** Opponents' average OMW% — Best of 1 Swiss's second tiebreak, standing in
+   *  for the game-based ones a single game per match can't feed. */
+  oomw: number;
   /** Games won minus games lost. League's primary tiebreak; harmless for Swiss. */
   gameDiff: number;
   opponents: OpponentBreakdown[];
@@ -186,7 +189,17 @@ interface PlayerStat {
   byeRounds: number[];
 }
 
-export type StandingsMode = 'swiss' | 'league';
+/** Which tiebreakers an event ranks on. `swiss` is Best of 3; `swiss-bo1`
+ *  plays one game per match, so GW%/OGW% would only echo MW%/OMW% and it
+ *  breaks ties on opponents' opponents instead. */
+export type StandingsMode = 'swiss' | 'swiss-bo1' | 'league';
+
+/** Games per Swiss match, fixed when the event is set up. */
+export type MatchFormat = 'bo1' | 'bo3';
+
+function swissStandingsMode(format: MatchFormat): StandingsMode {
+  return format === 'bo1' ? 'swiss-bo1' : 'swiss';
+}
 
 /**
  * The standings table for one event.
@@ -310,6 +323,8 @@ function computeStandings(
       gw: gw(p.id),
       omw,
       ogw,
+      // Filled in below, once every player's OMW% exists.
+      oomw: MIN_PCT,
       gameDiff: s.gamesWon - (s.gamesPlayed - s.gamesWon),
       opponents: opp.map((o) => ({
         ...o,
@@ -325,6 +340,14 @@ function computeStandings(
     };
   });
 
+  const omwById = new Map(rows.map((r) => [r.id, r.omw]));
+  rows.forEach((r) => {
+    if (r.opponents.length === 0) return;
+    r.oomw =
+      r.opponents.reduce((sum, o) => sum + (omwById.get(o.id) ?? MIN_PCT), 0) /
+      r.opponents.length;
+  });
+
   return orderStandings(rows, mode, manualOrder);
 }
 
@@ -336,9 +359,9 @@ function computeStandings(
  * opponent strength carries no signal — it never reads OMW%/OGW%.
  */
 function tiebreakKey(row: StandingRow, mode: StandingsMode): number[] {
-  return mode === 'league'
-    ? [row.points, row.gameDiff, row.gw]
-    : [row.points, row.omw, row.gw, row.ogw];
+  if (mode === 'league') return [row.points, row.gameDiff, row.gw];
+  if (mode === 'swiss-bo1') return [row.points, row.omw, row.oomw];
+  return [row.points, row.omw, row.gw, row.ogw];
 }
 
 function compareKeys(a: number[], b: number[]): number {
@@ -490,13 +513,14 @@ function generateSwissPairings(
   players: Player[],
   matches: SwissMatch[],
   roundNumber: number,
+  mode: StandingsMode = 'swiss',
 ): SwissPairingResult {
   const active = players.filter((p) => !p.dropped);
   let order: Player[];
   if (roundNumber === 1) {
     order = shuffle(active);
   } else {
-    const standings = computeStandings(active, matches);
+    const standings = computeStandings(active, matches, mode);
     order = standings.map((s) => active.find((p) => p.id === s.id)!);
   }
 
@@ -604,11 +628,14 @@ function applyGameWin(
  * whole schedule already exists as rows; for Swiss it only ever touches the
  * current round's pending match, since later rounds aren't generated yet
  * (the pairer already excludes dropped players from those).
+ *
+ * `winGames` is the forfeit's game score: 2 for Best of 3, 1 for Best of 1.
  */
 function dropPlayer(
   players: Player[],
   matches: SwissMatch[],
   playerId: string,
+  winGames = 2,
 ): { players: Player[]; matches: SwissMatch[] } {
   const nextPlayers = players.map((p) =>
     p.id === playerId ? { ...p, dropped: true } : p,
@@ -621,8 +648,8 @@ function dropPlayer(
     return {
       ...m,
       result: winner,
-      p1Games: winner === 'p1' ? 2 : 0,
-      p2Games: winner === 'p2' ? 2 : 0,
+      p1Games: winner === 'p1' ? winGames : 0,
+      p2Games: winner === 'p2' ? winGames : 0,
       forfeited: true,
     };
   });
@@ -973,6 +1000,7 @@ function reportDoubleEliminationResult(
 
 export {
   computeStandings,
+  swissStandingsMode,
   generateSwissPairings,
   generateRoundRobinSchedule,
   applyGameWin,

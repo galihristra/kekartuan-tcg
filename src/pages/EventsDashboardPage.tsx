@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createEvent, listActiveEvents } from '../lib/eventStore';
-import type { ArchivedEventSummary, Mode } from '../lib/eventStore';
+import {
+  createEvent,
+  listActiveEvents,
+  matchFormatOf,
+} from '../lib/eventStore';
+import type {
+  ArchivedEventSummary,
+  MatchFormat,
+  Mode,
+} from '../lib/eventStore';
 
 const MODE_OPTIONS: [Mode, string][] = [
   ['swiss', 'Swiss'],
@@ -14,11 +22,20 @@ function modeLabel(mode: Mode): string {
   return MODE_OPTIONS.find(([m]) => m === mode)?.[1] ?? mode;
 }
 
+const MATCH_FORMAT_OPTIONS: [MatchFormat, string][] = [
+  ['bo1', 'Best of 1'],
+  ['bo3', 'Best of 3'],
+];
+
 function progressLabel(ev: ArchivedEventSummary): string {
   const { mode, round, eventFinished } = ev.state;
-  if (eventFinished) return `${modeLabel(mode)} · finished`;
-  if (round === 0) return `${modeLabel(mode)} · not started`;
-  return `${modeLabel(mode)} · round ${round}`;
+  const format =
+    mode === 'swiss'
+      ? `${modeLabel(mode)} ${matchFormatOf(ev.state) === 'bo1' ? 'Bo1' : 'Bo3'}`
+      : modeLabel(mode);
+  if (eventFinished) return `${format} · finished`;
+  if (round === 0) return `${format} · not started`;
+  return `${format} · round ${round}`;
 }
 
 interface EventsDashboardPageProps {
@@ -33,6 +50,8 @@ export default function EventsDashboardPage({
   const [active, setActive] = useState<ArchivedEventSummary[]>([]);
   const [name, setName] = useState('');
   const [mode, setMode] = useState<Mode>('swiss');
+  // Most of the store's Swiss events are played Best of 1.
+  const [matchFormat, setMatchFormat] = useState<MatchFormat>('bo1');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -50,7 +69,7 @@ export default function EventsDashboardPage({
     setCreating(true);
     setCreateError(null);
     try {
-      const rec = await createEvent({ name, mode });
+      const rec = await createEvent({ name, mode, matchFormat });
       navigate(`/event/${rec.slug}`);
     } catch (e) {
       console.error('Failed to start event', e);
@@ -123,6 +142,19 @@ export default function EventsDashboardPage({
               </option>
             ))}
           </select>
+          {mode === 'swiss' && (
+            <select
+              aria-label="Match format"
+              value={matchFormat}
+              onChange={(e) => setMatchFormat(e.target.value as MatchFormat)}
+            >
+              {MATCH_FORMAT_OPTIONS.map(([f, label]) => (
+                <option key={f} value={f}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             className="tk-btn"
             disabled={creating}

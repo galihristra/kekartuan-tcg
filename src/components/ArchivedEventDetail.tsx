@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { computeStandings, matchesThroughRound } from '../engine/tournament';
-import { EVENT_DESCRIPTION_MAX_LENGTH, saveEvent } from '../lib/eventStore';
+import {
+  computeStandings,
+  matchesThroughRound,
+  swissStandingsMode,
+} from '../engine/tournament';
+import {
+  EVENT_DESCRIPTION_MAX_LENGTH,
+  matchFormatOf,
+  saveEvent,
+} from '../lib/eventStore';
 import type { ArchivedEventSummary } from '../lib/eventStore';
 import StandingsTable from './StandingsTable';
 import EventPhotos from './EventPhotos';
@@ -113,10 +121,14 @@ export default function ArchivedEventDetail({
     }
   }
 
+  const standingsMode =
+    event.state.mode === 'league'
+      ? 'league'
+      : swissStandingsMode(matchFormatOf(event.state));
   const standings = computeStandings(
     event.state.players,
     matchesThroughRound(event.state.matches, event.state.round),
-    event.state.mode === 'league' ? 'league' : 'swiss',
+    standingsMode,
     // Placings the organizer settled by hand are part of the result, so an
     // archived table has to reproduce them rather than fall back to a tie.
     event.state.standingsOrder ?? [],
@@ -181,7 +193,7 @@ export default function ArchivedEventDetail({
         playerMap={Object.fromEntries(
           event.state.players.map((p) => [p.id, p]),
         )}
-        mode={event.state.mode}
+        mode={standingsMode}
         eventName={event.name}
         eventDate={event.created_at}
         onEditDeck={isAdmin ? setEditingDeckPlayerId : undefined}

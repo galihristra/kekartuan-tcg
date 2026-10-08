@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import type { Player, SwissMatch, MatchResult } from '../engine/tournament';
+import type {
+  MatchFormat,
+  Player,
+  SwissMatch,
+  MatchResult,
+} from '../engine/tournament';
 import DeckSprites from './DeckSprites';
 
 interface GameToggleProps {
@@ -27,6 +32,8 @@ interface PairingTicketProps {
   match: SwissMatch;
   onReport: (patch: Partial<SwissMatch>) => void;
   readOnly?: boolean;
+  /** Best of 1 is one tap on the winner: no draws, no game count. */
+  matchFormat?: MatchFormat;
 }
 
 export default function PairingTicket({
@@ -36,11 +43,19 @@ export default function PairingTicket({
   match,
   onReport,
   readOnly,
+  matchFormat = 'bo3',
 }: PairingTicketProps) {
   const [close, setClose] = useState(false);
   const decided = !!match.result;
+  const bestOf1 = matchFormat === 'bo1';
 
   const report = (winner: MatchResult) => {
+    if (bestOf1)
+      return onReport(
+        winner === 'p1'
+          ? { result: 'p1', p1Games: 1, p2Games: 0 }
+          : { result: 'p2', p1Games: 0, p2Games: 1 },
+      );
     if (winner === 'draw')
       return onReport({ result: 'draw', p1Games: 1, p2Games: 1 });
     const loserGames = close ? 1 : 0;
@@ -78,7 +93,10 @@ export default function PairingTicket({
             </>
           )}
         </div>
-        {!decided && !readOnly && (
+        {!decided && !readOnly && bestOf1 && (
+          <div className="tk-hint">Tap the winner</div>
+        )}
+        {!decided && !readOnly && !bestOf1 && (
           <div className="tk-report">
             <GameToggle close={close} setClose={setClose} />
             <button
@@ -94,13 +112,13 @@ export default function PairingTicket({
       <div className="tk-result">
         {match.result === 'p1' && (
           <span className="tk-stamp win">
-            {p1.name} won {match.p1Games}–{match.p2Games}
+            {p1.name} won{!bestOf1 && ` ${match.p1Games}–${match.p2Games}`}
             {match.forfeited && ' (forfeit)'}
           </span>
         )}
         {match.result === 'p2' && (
           <span className="tk-stamp win">
-            {p2.name} won {match.p2Games}–{match.p1Games}
+            {p2.name} won{!bestOf1 && ` ${match.p2Games}–${match.p1Games}`}
             {match.forfeited && ' (forfeit)'}
           </span>
         )}

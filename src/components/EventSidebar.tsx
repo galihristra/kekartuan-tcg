@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Player } from '../engine/tournament';
 import { EVENT_DESCRIPTION_MAX_LENGTH } from '../lib/eventStore';
-import type { Mode, Registration } from '../lib/eventStore';
+import type { MatchFormat, Mode, Registration } from '../lib/eventStore';
 import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
 import EventLocation from './EventLocation';
 import EventSlug from './EventSlug';
@@ -15,6 +15,11 @@ const MODE_LABELS: Record<Mode, string> = {
 };
 
 const SELECTABLE_MODES: Mode[] = ['swiss', 'league'];
+
+const MATCH_FORMAT_LABELS: Record<MatchFormat, string> = {
+  bo1: 'Best of 1',
+  bo3: 'Best of 3',
+};
 
 interface EventSidebarProps {
   isAdmin: boolean;
@@ -41,6 +46,9 @@ interface EventSidebarProps {
   mode: Mode;
   modeLocked: boolean;
   onModeChange: (mode: Mode) => void;
+  matchFormat: MatchFormat;
+  matchFormatLocked: boolean;
+  onMatchFormatChange: (format: MatchFormat) => void;
   roundsInput: string;
   onRoundsInputChange: (value: string) => void;
   roundsValid: boolean;
@@ -77,6 +85,9 @@ export default function EventSidebar({
   mode,
   modeLocked,
   onModeChange,
+  matchFormat,
+  matchFormatLocked,
+  onMatchFormatChange,
   roundsInput,
   onRoundsInputChange,
   roundsValid,
@@ -148,6 +159,25 @@ export default function EventSidebar({
         // Shown to everyone: participants should see what they signed up for.
         <div className="tk-eventformat-readonly tk-hint">
           Format: {MODE_LABELS[mode]}
+          {mode === 'swiss' && ` · ${MATCH_FORMAT_LABELS[matchFormat]}`}
+        </div>
+      )}
+      {/* League is always Best of 3, so only Swiss asks. */}
+      {mode === 'swiss' && isAdmin && !matchFormatLocked && (
+        <div className="tk-rounds-setting">
+          <label htmlFor="tk-match-format">Match</label>
+          <select
+            id="tk-match-format"
+            value={matchFormat}
+            onChange={(e) => onMatchFormatChange(e.target.value as MatchFormat)}
+          >
+            {(['bo1', 'bo3'] as MatchFormat[]).map((f) => (
+              <option key={f} value={f}>
+                {MATCH_FORMAT_LABELS[f]}
+              </option>
+            ))}
+          </select>
+          <span className="tk-hint">locks when round 1 starts</span>
         </div>
       )}
       {/* Above the description: it's the one detail people act on. */}

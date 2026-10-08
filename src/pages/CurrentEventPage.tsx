@@ -163,6 +163,9 @@ export default function CurrentEventPage({
           mode={ev.mode}
           modeLocked={ev.modeLocked}
           onModeChange={ev.setMode}
+          matchFormat={ev.matchFormat}
+          matchFormatLocked={ev.matchFormatLocked}
+          onMatchFormatChange={ev.setMatchFormat}
           roundsInput={ev.roundsInput}
           onRoundsInputChange={ev.setRoundsInput}
           roundsValid={ev.roundsValid}
@@ -189,6 +192,8 @@ export default function CurrentEventPage({
               roundsValid={ev.roundsValid}
               eventName={ev.eventName}
               eventDate={ev.eventCreatedAt}
+              matchFormat={ev.matchFormat}
+              standingsMode={ev.standingsMode}
               onStartRound={ev.startRound}
               onFinishEvent={ev.finishEvent}
               onNewEvent={archiveAndLeave}

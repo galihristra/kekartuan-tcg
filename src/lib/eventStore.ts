@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type {
+  MatchFormat,
   Player,
   SwissMatch,
   SingleEliminationBracket,
@@ -7,6 +8,7 @@ import type {
 } from '../engine/tournament';
 
 export type Mode = 'swiss' | 'single' | 'double' | 'league';
+export type { MatchFormat };
 
 /** Everything about one event that we persist (excludes transient UI like the add-player input). */
 export interface EventState {
@@ -21,6 +23,17 @@ export interface EventState {
   /** Player ids, best-first, ordering players no tiebreak could separate.
    *  Optional: events saved before this existed simply have no overrides. */
   standingsOrder?: string[];
+  /** Games per Swiss match. Absent on events saved before the choice existed,
+   *  which were all reported Best of 3 — read it through `matchFormatOf`. */
+  matchFormat?: MatchFormat;
+}
+
+/** An event's match format, treating legacy rows as the Best of 3 they were
+ *  recorded as. */
+export function matchFormatOf(
+  state: Pick<EventState, 'matchFormat'>,
+): MatchFormat {
+  return state.matchFormat ?? 'bo3';
 }
 
 /** Free-text info shown alongside the event (start time, prizes, rules) —
@@ -180,9 +193,14 @@ function normalizeState(
 export async function createEvent(input: {
   name: string;
   mode: Mode;
+  matchFormat: MatchFormat;
 }): Promise<EventRecord> {
   const name = input.name.trim() || defaultEventName();
-  const state: EventState = { ...emptyState(), mode: input.mode };
+  const state: EventState = {
+    ...emptyState(),
+    mode: input.mode,
+    matchFormat: input.matchFormat,
+  };
   const base = slugify(name) || slugify(defaultEventName());
 
   // Two events can legitimately share a name (the archive already has "Deck

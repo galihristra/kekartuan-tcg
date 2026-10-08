@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   computeStandings,
+  swissStandingsMode,
   generateSwissPairings,
   generateRoundRobinSchedule,
   applyGameWin,
@@ -12,7 +13,9 @@ import {
   reportDoubleEliminationResult,
 } from '../engine/tournament';
 import type {
+  MatchFormat,
   Player,
+  StandingsMode,
   SwissMatch,
   SingleEliminationBracket,
   DoubleEliminationBracket,
@@ -24,6 +27,7 @@ import {
   deleteEvent,
   updateEventSlug,
   setRegistrationStatus,
+  matchFormatOf,
 } from '../lib/eventStore';
 import type {
   Mode,
@@ -55,6 +59,7 @@ interface EventStateOptions {
 export function useEventState(eventId: string, opts?: EventStateOptions) {
   const [players, setPlayers] = useState<Player[]>([]);
   const [mode, setMode] = useState<Mode>('swiss');
+  const [matchFormat, setMatchFormat] = useState<MatchFormat>('bo3');
 
   const [matches, setMatches] = useState<SwissMatch[]>([]);
   const [round, setRound] = useState(0);
@@ -90,6 +95,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     setEventCreatedAt(rec.created_at);
     const s = rec.state;
     setMode(s.mode);
+    setMatchFormat(matchFormatOf(s));
     setPlayers(s.players);
     setMatches(s.matches);
     setRound(s.round);
@@ -167,6 +173,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
       singleBracket,
       doubleBracket,
       standingsOrder,
+      matchFormat,
     };
     const t = setTimeout(() => {
       saveEvent(eventId, {
@@ -192,6 +199,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     singleBracket,
     doubleBracket,
     standingsOrder,
+    matchFormat,
     eventName,
     eventDescription,
     eventLocation,
@@ -220,6 +228,11 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
   // Changing format mid-event would reinterpret an existing schedule under
   // different rules, so it's only editable while the event is still empty.
   const modeLocked = players.length > 0 || matches.length > 0 || round > 0;
+  // Only reporting reads the match format, so it stays open right up to the
+  // first pairings rather than locking with the roster like `mode` does.
+  const matchFormatLocked = round > 0 || matches.length > 0;
+  const standingsMode: StandingsMode =
+    mode === 'league' ? 'league' : swissStandingsMode(matchFormat);
   // Nothing worth archiving yet, so this one can simply be thrown away.
   const isEmpty = players.length === 0 && matches.length === 0 && round === 0;
   // Self-registration closes as soon as the event starts pairing. Kept in step
@@ -278,6 +291,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
       players,
       matches,
       nextRound,
+      standingsMode,
     );
     const newMatches: SwissMatch[] = pairings.map((p) => ({
       ...p,
@@ -311,6 +325,8 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
       eventFinished,
       singleBracket,
       doubleBracket,
+      standingsOrder,
+      matchFormat,
     };
     await saveEvent(eventId, {
       name: eventName,
@@ -397,6 +413,8 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
       players,
       matches,
       playerId,
+      // League matches are always Best of 3.
+      mode === 'swiss' && matchFormat === 'bo1' ? 1 : 2,
     );
     setPlayers(nextPlayers);
     setMatches(nextMatches);
@@ -407,10 +425,10 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
       computeStandings(
         players,
         matchesThroughRound(matches, round),
-        mode === 'league' ? 'league' : 'swiss',
+        standingsMode,
         standingsOrder,
       ),
-    [players, matches, mode, round, standingsOrder],
+    [players, matches, standingsMode, round, standingsOrder],
   );
 
   /** Moves one player past the neighbour they share a place with. Only ever
@@ -490,6 +508,10 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     mode,
     setMode,
     modeLocked,
+    matchFormat,
+    setMatchFormat,
+    matchFormatLocked,
+    standingsMode,
     roundsInput,
     setRoundsInput,
     roundCount,
