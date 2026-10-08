@@ -1531,6 +1531,14 @@ a.tk-btn {
     width: 48px;
     height: 48px;
   }
+  /* Opp MW and Opp GW don't fit one line on a phone; give each its own
+     rather than letting the line break inside a figure. */
+  .tk-perf-round-tb-gw {
+    display: block;
+  }
+  .tk-perf-round-tb-sep {
+    display: none;
+  }
 }
 .tk-perf-round-tb {
   display: block;
@@ -1674,6 +1682,12 @@ a.tk-btn {
 .tk-share-card .tk-perf-round-name .tk-deck-sprite-xs {
   width: 48px;
   height: 48px;
+}
+/* The card is 460px wide on every device, so it keeps both figures on one
+   line even when a phone generates it. */
+.tk-share-card .tk-perf-round-tb-gw,
+.tk-share-card .tk-perf-round-tb-sep {
+  display: inline;
 }
 .tk-share-card-head .tk-perf-title-main {
   font-family: 'Barlow Condensed', 'Inter', sans-serif;
