@@ -74,7 +74,7 @@ export default function LeaguePanel({
           <div className="tk-roundlabel">Event complete</div>
           {isAdmin && (
             <button className="tk-btn ghost" onClick={onNewEvent}>
-              New event
+              Finish Event
             </button>
           )}
         </div>
