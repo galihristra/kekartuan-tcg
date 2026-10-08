@@ -68,7 +68,14 @@ export default function PlayerResultDetails({
                   {showOpponentTiebreaks && e.mw !== null && e.gw !== null ? (
                     <span className="tk-perf-round-tb">
                       Opp MW {(e.mw * 100).toFixed(1)}%
-                      {!bestOf1 && ` · Opp GW ${(e.gw * 100).toFixed(1)}%`}
+                      {!bestOf1 && (
+                        // Its own span so a phone can drop it onto a second
+                        // line instead of wrapping mid-figure.
+                        <span className="tk-perf-round-tb-gw">
+                          <span className="tk-perf-round-tb-sep"> · </span>
+                          Opp GW {(e.gw * 100).toFixed(1)}%
+                        </span>
+                      )}
                       {e.forfeited && ' · forfeit'}
                     </span>
                   ) : (

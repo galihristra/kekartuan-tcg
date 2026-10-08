@@ -290,11 +290,11 @@ html[data-theme='light'] .tk-root {
   outline: none;
   border-bottom: 1px solid var(--gold);
 }
-/* Smaller than the shared 40px, which is sized for the wide standings table and
+/* Smaller than the shared 48px, which is sized for the wide standings table and
    pairing tickets — the sidebar can't spare that much per sprite. */
 .tk-roster-row .tk-deck-sprite-mini {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
 }
 .tk-x {
   background: none;
@@ -1202,9 +1202,15 @@ a.tk-btn {
   .tk-perf-round-name {
     font-size: 16px;
   }
-  .tk-perf-round-name .tk-deck-sprite-xs {
-    width: 28px;
-    height: 28px;
+  /* Keep the bigger sprites from crowding names on a phone: each sprite's
+     transparent padding overlaps its neighbour's, so a deck takes no more
+     width than it did at 40px. */
+  .tk-deck-sprites .tk-deck-sprite-mini {
+    margin: 0 -4px;
+  }
+  .tk-deck-sprites {
+    margin-left: 4px;
+    margin-right: 10px;
   }
   .tk-perf-round-tb {
     font-size: 12.5px;
@@ -1267,15 +1273,17 @@ a.tk-btn {
   object-fit: contain;
   flex-shrink: 0;
 }
+/* Sprite files are 96px squares with transparent padding around the Pokémon,
+   so sizes that divide 96 evenly (48, 32) keep the pixel art crisp. */
 .tk-deck-sprite-mini {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   vertical-align: middle;
   margin-right: 2px;
 }
 .tk-deck-sprite-xs {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   vertical-align: middle;
   margin-right: 2px;
 }
@@ -1506,6 +1514,32 @@ a.tk-btn {
   align-items: center;
   font-size: 15px;
 }
+/* A player's result is about their decks, so the modal shows them larger
+   than the dense standings and pairing lists do. */
+.tk-perf-title .tk-deck-sprite-mini {
+  width: 56px;
+  height: 56px;
+}
+.tk-perf-round-name .tk-deck-sprite-xs {
+  width: 40px;
+  height: 40px;
+}
+/* On a phone the header shares its row with the Share and close buttons, and
+   anything wider than the shared 48px wraps the title onto extra lines. */
+@media (max-width: 600px) {
+  .tk-perf-title .tk-deck-sprite-mini {
+    width: 48px;
+    height: 48px;
+  }
+  /* Opp MW and Opp GW don't fit one line on a phone; give each its own
+     rather than letting the line break inside a figure. */
+  .tk-perf-round-tb-gw {
+    display: block;
+  }
+  .tk-perf-round-tb-sep {
+    display: none;
+  }
+}
 .tk-perf-round-tb {
   display: block;
   font-family: 'JetBrains Mono', monospace;
@@ -1638,6 +1672,22 @@ a.tk-btn {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* The shared image is a fixed 460px card captured at 2x, so it has room for
+   bigger sprites than a phone screen; 48px lands on the source's 96px. */
+.tk-share-card .tk-perf-title .tk-deck-sprite-mini {
+  width: 64px;
+  height: 64px;
+}
+.tk-share-card .tk-perf-round-name .tk-deck-sprite-xs {
+  width: 48px;
+  height: 48px;
+}
+/* The card is 460px wide on every device, so it keeps both figures on one
+   line even when a phone generates it. */
+.tk-share-card .tk-perf-round-tb-gw,
+.tk-share-card .tk-perf-round-tb-sep {
+  display: inline;
 }
 .tk-share-card-head .tk-perf-title-main {
   font-family: 'Barlow Condensed', 'Inter', sans-serif;

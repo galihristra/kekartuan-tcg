@@ -62,8 +62,8 @@ export default function PokemonCombobox({
                 src={pokemonSpriteUrl(item)}
                 alt=""
                 loading="lazy"
-                width={28}
-                height={28}
+                width={32}
+                height={32}
               />
               <span>{item.name}</span>
             </li>
