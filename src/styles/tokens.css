@@ -290,11 +290,11 @@ html[data-theme='light'] .tk-root {
   outline: none;
   border-bottom: 1px solid var(--gold);
 }
-/* Smaller than the shared 40px, which is sized for the wide standings table and
+/* Smaller than the shared 48px, which is sized for the wide standings table and
    pairing tickets — the sidebar can't spare that much per sprite. */
 .tk-roster-row .tk-deck-sprite-mini {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
 }
 .tk-x {
   background: none;
@@ -1202,9 +1202,19 @@ a.tk-btn {
   .tk-perf-round-name {
     font-size: 16px;
   }
+  /* Keep the bigger sprites from crowding names on a phone: each sprite's
+     transparent padding overlaps its neighbour's, so a deck takes no more
+     width than it did at 40px. */
+  .tk-deck-sprites .tk-deck-sprite-mini {
+    margin: 0 -4px;
+  }
+  .tk-deck-sprites {
+    margin-left: 4px;
+    margin-right: 10px;
+  }
   .tk-perf-round-name .tk-deck-sprite-xs {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
   }
   .tk-perf-round-tb {
     font-size: 12.5px;
@@ -1267,15 +1277,17 @@ a.tk-btn {
   object-fit: contain;
   flex-shrink: 0;
 }
+/* Sprite files are 96px squares with transparent padding around the Pokémon,
+   so sizes that divide 96 evenly (48, 32) keep the pixel art crisp. */
 .tk-deck-sprite-mini {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   vertical-align: middle;
   margin-right: 2px;
 }
 .tk-deck-sprite-xs {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   vertical-align: middle;
   margin-right: 2px;
 }
