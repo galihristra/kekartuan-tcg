@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { OpponentBreakdown, StandingRow } from '../engine/tournament';
-import { formatEventDate, resultStats, roundHistory } from './playerResult';
+import {
+  formatEventDate,
+  resultStats,
+  roundHistory,
+  statGlossary,
+} from './playerResult';
 
 function opponent(
   round: number,
@@ -130,6 +135,24 @@ describe('resultStats', () => {
     expect(diffOf(3)).toBe('+3');
     expect(diffOf(0)).toBe('0');
     expect(diffOf(-3)).toBe('-3');
+  });
+});
+
+describe('statGlossary', () => {
+  it.each([
+    ['swiss-bo1', ['MW%', 'OMW%', 'OOMW%']],
+    ['swiss', ['MW%', 'GW%', 'OMW%', 'OGW%']],
+    ['league', ['Diff', 'GW%']],
+  ] as const)('explains every tiebreak %s shows, in order', (mode, labels) => {
+    const glossary = statGlossary(row(), mode);
+
+    expect(glossary.map((g) => g.label)).toEqual(labels);
+    // Points and the record need no explaining; everything else must.
+    const shown = resultStats(row(), mode)
+      .map((s) => s.label)
+      .filter((l) => l !== 'Points' && !l.startsWith('W-'));
+    expect(shown).toEqual(labels);
+    glossary.forEach((g) => expect(g.text.length).toBeGreaterThan(0));
   });
 });
 

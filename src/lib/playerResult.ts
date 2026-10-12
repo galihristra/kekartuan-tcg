@@ -98,6 +98,30 @@ export function resultStats(
   ];
 }
 
+/** What each tiebreak abbreviation means, keyed by the label the standings
+ *  table and the stat grid print. Written for players, not organizers. */
+export const STAT_EXPLANATIONS: Record<string, string> = {
+  'MW%':
+    'Match win %: the match points you earned out of the most you could have. Counted as at least 33.3%.',
+  'OMW%':
+    "Opponents' match win %: the average MW% of everyone you played. Higher means you faced a tougher field.",
+  'OOMW%':
+    "Opponents' opponents' match win %: the average OMW% of everyone you played, so how tough your opponents' fields were. Breaks ties OMW% can't.",
+  'GW%': 'Game win %: the games you won out of the games you played.',
+  'OGW%': "Opponents' game win %: the average GW% of everyone you played.",
+  Diff: 'Game difference: games won minus games lost.',
+};
+
+/** Explanations for the stats `resultStats` shows this player, in its order. */
+export function statGlossary(
+  row: StandingRow,
+  mode: StandingsMode = 'swiss',
+): { label: string; text: string }[] {
+  return resultStats(row, mode)
+    .filter((s) => s.label in STAT_EXPLANATIONS)
+    .map((s) => ({ label: s.label, text: STAT_EXPLANATIONS[s.label] }));
+}
+
 const MONTH_NAMES = [
   'Jan',
   'Feb',

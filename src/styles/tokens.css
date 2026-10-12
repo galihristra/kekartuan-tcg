@@ -483,6 +483,48 @@ a.tk-btn {
   border-collapse: collapse;
   margin-top: 6px;
 }
+/* A table header that explains itself (InfoTip): reads as the header text,
+   with a dotted underline as the only hint that there's more. */
+.tk-infotip {
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted currentColor;
+  padding: 0;
+  cursor: help;
+}
+.tk-infotip:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.tk-infotip-bubble {
+  position: fixed;
+  z-index: 50;
+  transform: translateX(-50%);
+  max-width: 240px;
+  width: max-content;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+.tk-infotip-bubble[hidden] {
+  display: none;
+}
 .tk-standings th {
   text-align: left;
   font-family: 'Barlow Condensed', sans-serif;
@@ -1482,6 +1524,36 @@ a.tk-btn {
 .tk-perf-edit {
   width: 100%;
   margin-top: 12px;
+}
+.tk-perf-glossary {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.tk-perf-glossary summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.tk-perf-glossary dl {
+  margin: 8px 0 0;
+  display: grid;
+  gap: 6px;
+}
+.tk-perf-glossary dt {
+  display: inline;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+.tk-perf-glossary dt::after {
+  content: ' — ';
+  color: var(--muted);
+}
+.tk-perf-glossary dd {
+  display: inline;
+  margin: 0;
+  line-height: 1.45;
 }
 .tk-perf-heading {
   font-family: 'Barlow Condensed', sans-serif;
