@@ -364,9 +364,17 @@ function tiebreakKey(row: StandingRow, mode: StandingsMode): number[] {
   return [row.points, row.omw, row.gw, row.ogw];
 }
 
+/** Tiebreak percentages are averages of averages, and summing the same
+ *  opponents in a different order can leave two equal values a few ulps apart
+ *  (0.75 + 0.5 + 0.5 + 1/3 vs 1/3 + 0.75 + 0.5 + 0.5). Comparing at this
+ *  precision keeps that noise from deciding a place, far below any real gap. */
+const TIEBREAK_SCALE = 1e9;
+
 function compareKeys(a: number[], b: number[]): number {
   for (let i = 0; i < a.length; i++) {
-    if (b[i] !== a[i]) return b[i] - a[i];
+    const x = Math.round(a[i] * TIEBREAK_SCALE);
+    const y = Math.round(b[i] * TIEBREAK_SCALE);
+    if (y !== x) return y - x;
   }
   return 0;
 }
