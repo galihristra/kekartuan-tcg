@@ -125,25 +125,6 @@ export default function PlayerPerformanceModal({
           eventName={eventName}
         />
       }
-      headerActions={
-        status === 'idle' || status === 'rendering' ? (
-          <button
-            type="button"
-            className="tk-btn ghost tk-icon-btn tk-icon-btn--labeled"
-            onClick={render}
-            disabled={status === 'rendering'}
-            title={shareLabel}
-            aria-label={shareLabel}
-          >
-            {status === 'rendering' ? (
-              <span className="tk-spinner" />
-            ) : (
-              <ShareIcon />
-            )}
-            <span>Share</span>
-          </button>
-        ) : null
-      }
     >
       {status === 'ready' && previewUrl ? (
         // The share sheet has to be opened straight off a tap: iOS drops the
@@ -218,6 +199,23 @@ export default function PlayerPerformanceModal({
               </>
             }
           />
+
+          {/* Down here rather than in the header, which on a phone already has
+              the deck sprites, a wrapped title and the close button to fit. */}
+          <button
+            type="button"
+            className="tk-btn tk-perf-share"
+            onClick={render}
+            disabled={status === 'rendering'}
+            title={shareLabel}
+          >
+            {status === 'rendering' ? (
+              <span className="tk-spinner" />
+            ) : (
+              <ShareIcon />
+            )}
+            <span>{status === 'rendering' ? 'Preparing image…' : 'Share'}</span>
+          </button>
         </>
       )}
 

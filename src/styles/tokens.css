@@ -1525,6 +1525,18 @@ a.tk-btn {
   width: 100%;
   margin-top: 12px;
 }
+.tk-perf-share {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+}
+.tk-perf-share svg {
+  width: 16px;
+  height: 16px;
+}
 .tk-perf-glossary {
   margin-top: 10px;
   font-size: 13px;
