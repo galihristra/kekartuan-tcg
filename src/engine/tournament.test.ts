@@ -599,7 +599,9 @@ describe('computeStandings Best of 1 mode', () => {
       for (let i = 1; i < rows.length; i++) {
         const a = rows[i - 1];
         const b = rows[i];
-        const key = (r: typeof a) => [r.points, r.omw, r.oomw];
+        // Same precision the engine compares at, so float noise reads as level.
+        const key = (r: typeof a) =>
+          [r.points, r.omw, r.oomw].map((v) => Math.round(v * 1e9));
         const [ka, kb] = [key(a), key(b)];
         const firstDiff = ka.findIndex((v, k) => v !== kb[k]);
         // Fully level rows fall through to head-to-head; otherwise the first
@@ -642,6 +644,70 @@ describe('computeStandings Best of 1 mode', () => {
     const bo3 = computeStandings(players, matches, 'swiss');
     expect(bo3[0].id).toBe('p1');
     expect(bo3[1].rank).toBe(2);
+  });
+
+  it('does not let float noise in OMW% decide a place', () => {
+    // A real 18-player, 4-round event. 'f' and 'g' faced opponents with the
+    // same match-win percentages (75, 50, 50, 33.3) in a different order, so
+    // their OMW% sums land one ulp apart. They are level on OMW%, and 'f' has
+    // the far better OOMW% (54.7 vs 45.3), so 'f' must place above 'g'.
+    const ids = 'abcdefghijklmnopqr'.split('');
+    const players: Player[] = ids.map((id) => ({ id, name: id }));
+    // [round, winner, loser]
+    const results: [number, string, string][] = [
+      [1, 'l', 'r'],
+      [1, 'f', 'h'],
+      [1, 'i', 'b'],
+      [1, 'j', 'c'],
+      [1, 'q', 'g'],
+      [1, 'm', 'e'],
+      [1, 'k', 'o'],
+      [1, 'n', 'p'],
+      [1, 'd', 'a'],
+      [2, 'd', 'f'],
+      [2, 'i', 'j'],
+      [2, 'l', 'k'],
+      [2, 'n', 'm'],
+      [2, 'q', 'a'],
+      [2, 'b', 'c'],
+      [2, 'e', 'g'],
+      [2, 'o', 'h'],
+      [2, 'r', 'p'],
+      [3, 'i', 'l'],
+      [3, 'd', 'n'],
+      [3, 'k', 'q'],
+      [3, 'p', 'g'],
+      [3, 'j', 'f'],
+      [3, 'b', 'm'],
+      [3, 'o', 'a'],
+      [3, 'c', 'h'],
+      [3, 'e', 'r'],
+      [4, 'i', 'd'],
+      [4, 'b', 'l'],
+      [4, 'k', 'j'],
+      [4, 'o', 'n'],
+      [4, 'm', 'f'],
+      [4, 'c', 'r'],
+      [4, 'q', 'e'],
+      [4, 'g', 'h'],
+      [4, 'p', 'a'],
+    ];
+    const matches: SwissMatch[] = results.map(([round, p1Id, p2Id]) => ({
+      p1Id,
+      p2Id,
+      round,
+      result: 'p1',
+      p1Games: 1,
+      p2Games: 0,
+    }));
+    const rows = computeStandings(players, matches, 'swiss-bo1');
+    const f = rows.find((r) => r.id === 'f')!;
+    const g = rows.find((r) => r.id === 'g')!;
+    expect(f.points).toBe(g.points);
+    expect(f.omw).toBeCloseTo(g.omw, 12);
+    expect(f.oomw).toBeGreaterThan(g.oomw);
+    expect(f.rank).toBeLessThan(g.rank);
+    expect(f.tiebreakNeeded).toBe(false);
   });
 });
 
