@@ -846,6 +846,28 @@ a.tk-btn {
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
+/* Its own row so the pill keeps its natural width under a full-width name. */
+.tk-format-badge-row {
+  margin-top: 8px;
+}
+/* On a past event it sits between the title and the standings heading. */
+.tk-format-badge-row--archived {
+  margin: -6px 0 16px;
+}
+.tk-format-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 999px;
+  color: var(--text);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
 /* Location sits on one line with its copy/open actions. It wraps rather than
    squeezing the field, so the actions drop below in the narrow sidebar. */
 .tk-eventlocation-wrap {

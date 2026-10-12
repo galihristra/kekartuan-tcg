@@ -5,21 +5,10 @@ import type { MatchFormat, Mode, Registration } from '../lib/eventStore';
 import { getPokemon, pokemonSpriteUrl } from '../lib/pokemon';
 import EventLocation from './EventLocation';
 import EventSlug from './EventSlug';
+import FormatBadge, { MATCH_FORMAT_LABELS, MODE_LABELS } from './FormatBadge';
 import PendingRegistrations from './PendingRegistrations';
 
-const MODE_LABELS: Record<Mode, string> = {
-  swiss: 'Swiss',
-  league: 'League',
-  single: 'Single Elim',
-  double: 'Double Elim',
-};
-
 const SELECTABLE_MODES: Mode[] = ['swiss', 'league'];
-
-const MATCH_FORMAT_LABELS: Record<MatchFormat, string> = {
-  bo1: 'Bo1',
-  bo3: 'Bo3',
-};
 
 interface EventSidebarProps {
   isAdmin: boolean;
@@ -136,10 +125,16 @@ export default function EventSidebar({
         // it, so non-admins get the name as selectable text instead.
         eventName && <div className="tk-eventname-readonly">{eventName}</div>
       )}
+      {/* Shown to everyone, and to the organizer even while the pickers below
+          are still open: participants should see what they signed up for, and
+          the organizer should see a wrong pick before round 1 locks it. */}
+      <div className="tk-format-badge-row">
+        <FormatBadge mode={mode} matchFormat={matchFormat} />
+      </div>
       {/* The link the organizer hands out — theirs to manage, so admin-only.
           Everyone else already has it in the address bar. */}
       {isAdmin && <EventSlug slug={eventSlug} onSave={onSlugChange} />}
-      {isAdmin && !modeLocked ? (
+      {isAdmin && !modeLocked && (
         <div className="tk-rounds-setting">
           <label htmlFor="tk-event-format">Format</label>
           <select
@@ -154,12 +149,6 @@ export default function EventSidebar({
             ))}
           </select>
           <span className="tk-hint">locks once players are added</span>
-        </div>
-      ) : (
-        // Shown to everyone: participants should see what they signed up for.
-        <div className="tk-eventformat-readonly tk-hint">
-          Format: {MODE_LABELS[mode]}
-          {mode === 'swiss' && ` · ${MATCH_FORMAT_LABELS[matchFormat]}`}
         </div>
       )}
       {/* League is always Best of 3, so only Swiss asks. */}
