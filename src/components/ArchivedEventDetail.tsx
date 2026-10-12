@@ -13,6 +13,7 @@ import type { ArchivedEventSummary } from '../lib/eventStore';
 import StandingsTable from './StandingsTable';
 import EventPhotos from './EventPhotos';
 import EventLocation from './EventLocation';
+import FormatBadge from './FormatBadge';
 import DeckEditModal from './DeckEditModal';
 
 interface ArchivedEventDetailProps {
@@ -152,6 +153,12 @@ export default function ArchivedEventDetail({
           <span className="tk-error">Cancelled</span> — {event.name}
         </div>
       )}
+      <div className="tk-format-badge-row tk-format-badge-row--archived">
+        <FormatBadge
+          mode={event.state.mode}
+          matchFormat={matchFormatOf(event.state)}
+        />
+      </div>
       <EventLocation
         isAdmin={isAdmin}
         value={draft.location}
