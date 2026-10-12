@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { Player, StandingRow, StandingsMode } from '../engine/tournament';
-import { formatGameDiff } from '../lib/playerResult';
+import { formatGameDiff, STAT_EXPLANATIONS } from '../lib/playerResult';
 import DeckSprites from './DeckSprites';
+import InfoTip from './InfoTip';
 import PlayerPerformanceModal from './PlayerPerformanceModal';
 
 interface TiebreakColumn {
@@ -74,7 +75,7 @@ export default function StandingsTable({
             <th>{showDraws ? 'W-D-L' : 'W-L'}</th>
             {columns.map((c) => (
               <th key={c.key} className={`tk-col-tb tk-col-${c.key}`}>
-                {c.header}
+                <InfoTip label={c.header} text={STAT_EXPLANATIONS[c.header]} />
               </th>
             ))}
           </tr>

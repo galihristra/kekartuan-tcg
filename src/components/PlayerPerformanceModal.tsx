@@ -15,6 +15,7 @@ import Modal from './Modal';
 import PlayerResultDetails from './PlayerResultDetails';
 import PlayerResultShareCard from './PlayerResultShareCard';
 import PlayerResultTitle from './PlayerResultTitle';
+import StatGlossary from './StatGlossary';
 
 interface PlayerPerformanceModalProps {
   onClose: () => void;
@@ -204,14 +205,17 @@ export default function PlayerPerformanceModal({
             playerMap={playerMap}
             mode={mode}
             afterStats={
-              onEditDeck && (
-                <button
-                  className="tk-btn ghost tk-perf-edit"
-                  onClick={onEditDeck}
-                >
-                  Edit deck
-                </button>
-              )
+              <>
+                <StatGlossary row={row} mode={mode} />
+                {onEditDeck && (
+                  <button
+                    className="tk-btn ghost tk-perf-edit"
+                    onClick={onEditDeck}
+                  >
+                    Edit deck
+                  </button>
+                )}
+              </>
             }
           />
         </>

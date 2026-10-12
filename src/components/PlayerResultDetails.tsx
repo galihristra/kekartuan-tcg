@@ -9,7 +9,8 @@ interface PlayerResultDetailsProps {
   /** Which tiebreakers this event actually ranks on. */
   mode?: StandingsMode;
   /** Slot between the stats grid and the round list. The share card leaves it
-   *  empty; the modal puts the admin "Edit deck" button here. */
+   *  empty; the modal puts the stat glossary and the admin "Edit deck" button
+   *  here. */
   afterStats?: ReactNode;
 }
 
