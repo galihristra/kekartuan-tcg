@@ -220,6 +220,7 @@ export default function CurrentEventPage({
               onNewEvent={archiveAndLeave}
               onReportGame={ev.reportLeagueGame}
               onDraw={ev.reportLeagueDraw}
+              onDoubleLoss={ev.reportLeagueDoubleLoss}
               onEditMatch={(m) =>
                 ev.reportSwiss(m, { result: null, p1Games: 0, p2Games: 0 })
               }
