@@ -12,7 +12,10 @@ export interface Player {
   registrationId?: string;
 }
 
-export type MatchResult = 'p1' | 'p2' | 'draw';
+/** `draw` and `double_loss` are what a match that runs out of time can end
+ *  in: a draw gives both players a draw's point, a double loss gives both
+ *  nothing and counts as a loss for each. */
+export type MatchResult = 'p1' | 'p2' | 'draw' | 'double_loss';
 
 /**
  * A Swiss-round match. Regular matches carry a `p2Id` and (once played) a
@@ -45,6 +48,8 @@ export interface OpponentBreakdown {
   gamesAgainst: number;
   /** Set when the match was decided by a drop rather than being played out. */
   forfeited?: boolean;
+  /** Set when this loss was a double loss: the opponent lost it too. */
+  doubleLoss?: boolean;
   mw: number;
   gw: number;
 }
@@ -248,10 +253,21 @@ function computeStandings(
     if (!s1 || !s2 || !m.result) return;
     s1.matchesPlayed += 1;
     s2.matchesPlayed += 1;
-    const outcome1: MatchOutcome =
-      m.result === 'p1' ? 'W' : m.result === 'p2' ? 'L' : 'D';
-    const outcome2: MatchOutcome =
-      outcome1 === 'W' ? 'L' : outcome1 === 'L' ? 'W' : 'D';
+    const doubleLoss = m.result === 'double_loss';
+    const outcome1: MatchOutcome = doubleLoss
+      ? 'L'
+      : m.result === 'p1'
+        ? 'W'
+        : m.result === 'p2'
+          ? 'L'
+          : 'D';
+    const outcome2: MatchOutcome = doubleLoss
+      ? 'L'
+      : outcome1 === 'W'
+        ? 'L'
+        : outcome1 === 'L'
+          ? 'W'
+          : 'D';
     const p1Games = m.p1Games || 0;
     const p2Games = m.p2Games || 0;
     s1.opponents.push({
@@ -261,6 +277,7 @@ function computeStandings(
       gamesFor: p1Games,
       gamesAgainst: p2Games,
       forfeited: m.forfeited,
+      ...(doubleLoss && { doubleLoss: true }),
     });
     s2.opponents.push({
       id: m.p1Id,
@@ -269,6 +286,7 @@ function computeStandings(
       gamesFor: p2Games,
       gamesAgainst: p1Games,
       forfeited: m.forfeited,
+      ...(doubleLoss && { doubleLoss: true }),
     });
     s1.gamesWon += p1Games;
     s2.gamesWon += p2Games;
@@ -283,6 +301,11 @@ function computeStandings(
       s2.points += MATCH_POINTS.win;
       s2.wins += 1;
       s1.losses += 1;
+    } else if (doubleLoss) {
+      // Both take a loss's zero points, and the match still counts towards
+      // each player's MW% as one they could have won.
+      s1.losses += 1;
+      s2.losses += 1;
     } else {
       s1.points += MATCH_POINTS.draw;
       s2.points += MATCH_POINTS.draw;

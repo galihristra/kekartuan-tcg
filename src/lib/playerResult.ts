@@ -10,6 +10,8 @@ export interface RoundEntry {
   gamesFor: number | null;
   gamesAgainst: number | null;
   forfeited?: boolean;
+  /** A loss the opponent took too, from a match that ran out of time. */
+  doubleLoss?: boolean;
   mw: number | null;
   gw: number | null;
 }
@@ -20,6 +22,12 @@ export interface ResultStat {
 }
 
 export const RESULT_LABEL = { W: 'Win', D: 'Draw', L: 'Loss' } as const;
+
+/** How a round's result reads in words, telling a double loss apart from a
+ *  loss the opponent won. */
+export function resultLabel(entry: Pick<RoundEntry, 'result' | 'doubleLoss'>) {
+  return entry.doubleLoss ? 'Double loss' : RESULT_LABEL[entry.result];
+}
 
 /** Game differential reads as a signed number, so "+3" is visibly a surplus
  *  rather than a count of anything. */
@@ -39,6 +47,7 @@ export function roundHistory(row: StandingRow): RoundEntry[] {
       gamesFor: o.gamesFor,
       gamesAgainst: o.gamesAgainst,
       forfeited: o.forfeited,
+      doubleLoss: o.doubleLoss,
       mw: o.mw,
       gw: o.gw,
     })),
@@ -69,10 +78,10 @@ export function resultStats(
   mode: StandingsMode = 'swiss',
 ): ResultStat[] {
   if (mode === 'swiss-bo1') {
-    // No draws, and GW%/OGW% only echo MW%/OMW% when every match is one game.
+    // GW%/OGW% only echo MW%/OMW% when every match is one game.
     return [
       { label: 'Points', value: String(row.points) },
-      { label: 'W-L', value: `${row.wins}-${row.losses}` },
+      { label: 'W-D-L', value: `${row.wins}-${row.draws}-${row.losses}` },
       { label: 'MW%', value: (row.mw * 100).toFixed(1) },
       { label: 'OMW%', value: (row.omw * 100).toFixed(1) },
       { label: 'OOMW%', value: (row.oomw * 100).toFixed(1) },

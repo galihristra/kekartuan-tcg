@@ -61,9 +61,6 @@ export default function StandingsTable({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedRow = rows.find((r) => r.id === selectedId) ?? null;
   const columns = TIEBREAK_COLUMNS[mode];
-  // Best of 1 has no draws, so the record reads W-L.
-  const showDraws = mode !== 'swiss-bo1';
-
   return (
     <div className="tk-table-scroll">
       <table className="tk-standings">
@@ -72,7 +69,7 @@ export default function StandingsTable({
             <th>#</th>
             <th>Player</th>
             <th>Pts</th>
-            <th>{showDraws ? 'W-D-L' : 'W-L'}</th>
+            <th>W-D-L</th>
             {columns.map((c) => (
               <th key={c.key} className={`tk-col-tb tk-col-${c.key}`}>
                 <InfoTip label={c.header} text={STAT_EXPLANATIONS[c.header]} />
@@ -149,9 +146,7 @@ export default function StandingsTable({
                 </td>
                 <td className="tk-num">{r.points}</td>
                 <td className="tk-num">
-                  {showDraws
-                    ? `${r.wins}-${r.draws}-${r.losses}`
-                    : `${r.wins}-${r.losses}`}
+                  {r.wins}-{r.draws}-{r.losses}
                 </td>
                 {columns.map((c) => (
                   <td

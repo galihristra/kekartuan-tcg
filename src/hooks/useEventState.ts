@@ -400,10 +400,17 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     setMatches((all) => all.map((m) => (m === match ? { ...m, ...patch } : m)));
   };
 
-  /** Records a time-limit draw. The UI only offers this at a 1-1 game score. */
+  /** Records a time-limit draw. The UI only offers this at a level game score. */
   const reportLeagueDraw = (match: SwissMatch) => {
     setMatches((all) =>
       all.map((m) => (m === match ? { ...m, result: 'draw' } : m)),
+    );
+  };
+
+  /** Records a time-limit double loss: zero points and a loss for both. */
+  const reportLeagueDoubleLoss = (match: SwissMatch) => {
+    setMatches((all) =>
+      all.map((m) => (m === match ? { ...m, result: 'double_loss' } : m)),
     );
   };
 
@@ -532,6 +539,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     // league
     reportLeagueGame,
     reportLeagueDraw,
+    reportLeagueDoubleLoss,
     standingsOrder,
     reorderTiedPlayer,
     clearStandingsOrder,

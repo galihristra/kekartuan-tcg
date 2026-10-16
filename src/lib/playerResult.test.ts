@@ -3,6 +3,7 @@ import type { OpponentBreakdown, StandingRow } from '../engine/tournament';
 import {
   formatEventDate,
   resultStats,
+  resultLabel,
   roundHistory,
   statGlossary,
 } from './playerResult';
@@ -111,8 +112,8 @@ describe('resultStats', () => {
     ]);
   });
 
-  it('shows Best of 1 a W-L record and the opponents tiebreaks it ranks on', () => {
-    // One game a match: no draws, and GW%/OGW% would only repeat MW%/OMW%.
+  it('shows Best of 1 a W-D-L record and the opponents tiebreaks it ranks on', () => {
+    // One game a match, so GW%/OGW% would only repeat MW%/OMW%.
     const stats = resultStats(
       row({ wins: 2, losses: 1, mw: 2 / 3, omw: 0.5, oomw: 0.45 }),
       'swiss-bo1',
@@ -120,7 +121,7 @@ describe('resultStats', () => {
 
     expect(stats).toEqual([
       { label: 'Points', value: '9' },
-      { label: 'W-L', value: '2-1' },
+      { label: 'W-D-L', value: '2-0-1' },
       { label: 'MW%', value: '66.7' },
       { label: 'OMW%', value: '50.0' },
       { label: 'OOMW%', value: '45.0' },
@@ -168,5 +169,13 @@ describe('formatEventDate', () => {
     expect(formatEventDate(undefined)).toBeNull();
     expect(formatEventDate('')).toBeNull();
     expect(formatEventDate('not a date')).toBeNull();
+  });
+});
+
+describe('resultLabel', () => {
+  it('tells a double loss apart from a loss the opponent won', () => {
+    expect(resultLabel({ result: 'L' })).toBe('Loss');
+    expect(resultLabel({ result: 'L', doubleLoss: true })).toBe('Double loss');
+    expect(resultLabel({ result: 'D' })).toBe('Draw');
   });
 });

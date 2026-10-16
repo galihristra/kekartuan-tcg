@@ -20,6 +20,7 @@ interface LeaguePanelProps {
   onNewEvent: () => void;
   onReportGame: (match: SwissMatch, winner: 'p1' | 'p2') => void;
   onDraw: (match: SwissMatch) => void;
+  onDoubleLoss: (match: SwissMatch) => void;
   onEditMatch: (match: SwissMatch) => void;
   /** Organizer-only: settles a tie no result could. */
   onReorderTied: (playerId: string, direction: 'up' | 'down') => void;
@@ -46,6 +47,7 @@ export default function LeaguePanel({
   onNewEvent,
   onReportGame,
   onDraw,
+  onDoubleLoss,
   onEditMatch,
   onReorderTied,
   onClearTieOrder,
@@ -185,6 +187,7 @@ export default function LeaguePanel({
             match={m}
             onReportGame={(winner) => onReportGame(m, winner)}
             onDraw={() => onDraw(m)}
+            onDoubleLoss={() => onDoubleLoss(m)}
             onEdit={() => onEditMatch(m)}
             readOnly={!isAdmin}
           />

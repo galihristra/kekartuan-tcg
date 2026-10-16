@@ -32,7 +32,7 @@ interface PairingTicketProps {
   match: SwissMatch;
   onReport: (patch: Partial<SwissMatch>) => void;
   readOnly?: boolean;
-  /** Best of 1 is one tap on the winner: no draws, no game count. */
+  /** Best of 1 is one tap on the winner, with no game count. */
   matchFormat?: MatchFormat;
 }
 
@@ -50,14 +50,22 @@ export default function PairingTicket({
   const bestOf1 = matchFormat === 'bo1';
 
   const report = (winner: MatchResult) => {
+    // Out of time: nobody took a game off anyone in a double loss, and a Best
+    // of 3 draw is the usual one, called during a third game at 1-1.
+    if (winner === 'double_loss')
+      return onReport({ result: 'double_loss', p1Games: 0, p2Games: 0 });
+    if (winner === 'draw')
+      return onReport(
+        bestOf1
+          ? { result: 'draw', p1Games: 0, p2Games: 0 }
+          : { result: 'draw', p1Games: 1, p2Games: 1 },
+      );
     if (bestOf1)
       return onReport(
         winner === 'p1'
           ? { result: 'p1', p1Games: 1, p2Games: 0 }
           : { result: 'p2', p1Games: 0, p2Games: 1 },
       );
-    if (winner === 'draw')
-      return onReport({ result: 'draw', p1Games: 1, p2Games: 1 });
     const loserGames = close ? 1 : 0;
     onReport(
       winner === 'p1'
@@ -96,14 +104,20 @@ export default function PairingTicket({
         {!decided && !readOnly && bestOf1 && (
           <div className="tk-hint">Tap the winner</div>
         )}
-        {!decided && !readOnly && !bestOf1 && (
+        {!decided && !readOnly && (
           <div className="tk-report">
-            <GameToggle close={close} setClose={setClose} />
+            {!bestOf1 && <GameToggle close={close} setClose={setClose} />}
             <button
               className="tk-btn ghost tk-btn--sm"
               onClick={() => report('draw')}
             >
               Draw
+            </button>
+            <button
+              className="tk-btn ghost tk-btn--sm"
+              onClick={() => report('double_loss')}
+            >
+              Double loss
             </button>
           </div>
         )}
@@ -123,6 +137,9 @@ export default function PairingTicket({
           </span>
         )}
         {match.result === 'draw' && <span className="tk-stamp draw">Draw</span>}
+        {match.result === 'double_loss' && (
+          <span className="tk-stamp loss">Double loss</span>
+        )}
         {decided && !readOnly && !match.forfeited && (
           <button
             className="tk-btn ghost tk-btn--sm"

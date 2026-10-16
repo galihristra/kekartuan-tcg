@@ -252,6 +252,89 @@ describe('Standings match history', () => {
   });
 });
 
+describe('Time-limit results', () => {
+  // p1 and p2 run out of time; p3 and p4 play a normal match alongside them.
+  const players = makePlayers(4);
+  const timedOut = (result: 'draw' | 'double_loss'): SwissMatch[] => [
+    { p1Id: 'p1', p2Id: 'p2', round: 1, result, p1Games: 0, p2Games: 0 },
+    { p1Id: 'p3', p2Id: 'p4', round: 1, result: 'p1', p1Games: 1, p2Games: 0 },
+  ];
+
+  it('gives each side of a draw 1 point and a draw on their record', () => {
+    const byId = Object.fromEntries(
+      computeStandings(players, timedOut('draw'), 'swiss-bo1').map((r) => [
+        r.id,
+        r,
+      ]),
+    );
+
+    for (const id of ['p1', 'p2']) {
+      expect(byId[id]).toMatchObject({
+        points: 1,
+        wins: 0,
+        draws: 1,
+        losses: 0,
+      });
+      expect(byId[id].mw).toBeCloseTo(1 / 3);
+      expect(byId[id].opponents).toMatchObject([{ result: 'D' }]);
+    }
+  });
+
+  it('gives both sides of a double loss 0 points and a loss', () => {
+    const byId = Object.fromEntries(
+      computeStandings(players, timedOut('double_loss'), 'swiss-bo1').map(
+        (r) => [r.id, r],
+      ),
+    );
+
+    for (const id of ['p1', 'p2']) {
+      expect(byId[id]).toMatchObject({
+        points: 0,
+        wins: 0,
+        draws: 0,
+        losses: 1,
+      });
+      // Counted as a played match, so MW% falls to its 33.3% floor.
+      expect(byId[id].mw).toBeCloseTo(1 / 3);
+      expect(byId[id].opponents).toMatchObject([
+        { result: 'L', doubleLoss: true },
+      ]);
+    }
+    // An ordinary loss carries no double-loss flag.
+    expect(byId.p4.opponents[0].doubleLoss).toBeUndefined();
+  });
+
+  it("counts a double loss as a loss in an opponent's OMW%", () => {
+    const matches: SwissMatch[] = [
+      ...timedOut('double_loss'),
+      {
+        p1Id: 'p1',
+        p2Id: 'p3',
+        round: 2,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+      {
+        p1Id: 'p2',
+        p2Id: 'p4',
+        round: 2,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+    ];
+    const byId = Object.fromEntries(
+      computeStandings(players, matches).map((r) => [r.id, r]),
+    );
+
+    // p1 is 1-0-1 after a double loss and a win: 3 of a possible 6 points.
+    expect(byId.p1.mw).toBeCloseTo(0.5);
+    // p3 faced p4 (0-2, floored to 33.3%) and p1 (50%).
+    expect(byId.p3.omw).toBeCloseTo((1 / 3 + 0.5) / 2);
+  });
+});
+
 describe('Single elimination', () => {
   it.each([2, 3, 4, 5, 6, 7, 8, 13, 16])(
     'produces exactly one valid champion for n=%i',

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Player, StandingRow, StandingsMode } from '../engine/tournament';
-import { RESULT_LABEL, resultStats, roundHistory } from '../lib/playerResult';
+import { resultLabel, resultStats, roundHistory } from '../lib/playerResult';
 import DeckSprites from './DeckSprites';
 
 interface PlayerResultDetailsProps {
@@ -78,13 +78,16 @@ export default function PlayerResultDetails({
                         </span>
                       )}
                       {e.forfeited && ' · forfeit'}
+                      {e.doubleLoss && ' · double loss'}
                     </span>
                   ) : (
                     // A forfeit explains an otherwise unearned-looking result,
                     // so it still has to show once the tiebreakers above it are
                     // gone.
-                    e.forfeited && (
-                      <span className="tk-perf-round-tb">forfeit</span>
+                    (e.forfeited || e.doubleLoss) && (
+                      <span className="tk-perf-round-tb">
+                        {e.forfeited ? 'forfeit' : 'double loss'}
+                      </span>
                     )
                   )}
                 </span>
@@ -92,11 +95,11 @@ export default function PlayerResultDetails({
                   className="tk-perf-round-result"
                   title={
                     hasScore
-                      ? `${RESULT_LABEL[e.result]} ${e.gamesFor}-${e.gamesAgainst}`
-                      : RESULT_LABEL[e.result]
+                      ? `${resultLabel(e)} ${e.gamesFor}-${e.gamesAgainst}`
+                      : resultLabel(e)
                   }
                 >
-                  {e.result}
+                  {e.doubleLoss ? 'DL' : e.result}
                   {hasScore && (
                     <span className="tk-perf-round-score">
                       ({e.gamesFor}–{e.gamesAgainst})
