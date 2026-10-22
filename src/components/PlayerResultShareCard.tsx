@@ -45,6 +45,7 @@ const PlayerResultShareCard = forwardRef<
             playerName={row.name}
             player={playerMap[row.id]}
             eventName={eventName}
+            rank={row.rank}
           />
         </div>
         <PlayerResultDetails row={row} playerMap={playerMap} mode={mode} />

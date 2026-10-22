@@ -123,6 +123,7 @@ export default function PlayerPerformanceModal({
           playerName={row.name}
           player={playerMap[row.id]}
           eventName={eventName}
+          rank={row.rank}
         />
       }
     >
