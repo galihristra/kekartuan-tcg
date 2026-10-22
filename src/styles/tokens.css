@@ -1497,7 +1497,7 @@ a.tk-btn {
 }
 .tk-perf-title-place {
   color: var(--gold);
-  font-size: 0.85em;
+  font-size: 0.72em;
 }
 .tk-perf-stats {
   display: grid;
@@ -1809,7 +1809,7 @@ a.tk-btn {
   font-family: 'Barlow Condensed', 'Inter', sans-serif;
   font-weight: 700;
   letter-spacing: 0.02em;
-  font-size: 17px;
+  font-size: 15px;
 }
 .tk-share-card-foot {
   display: flex;
