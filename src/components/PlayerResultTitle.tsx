@@ -7,6 +7,8 @@ interface PlayerResultTitleProps {
   /** Shown above the player's name so a shared picture of this result says
    *  which event it belongs to. */
   eventName?: string;
+  /** Where the player finished, e.g. "3rd of 16", printed after "Result". */
+  placing?: string;
 }
 
 /** The sprites-plus-two-lines heading, shared by the modal header and the
@@ -15,6 +17,7 @@ export default function PlayerResultTitle({
   playerName,
   player,
   eventName,
+  placing,
 }: PlayerResultTitleProps) {
   return (
     <span className="tk-perf-title">
@@ -23,7 +26,17 @@ export default function PlayerResultTitle({
         {eventName?.trim() && (
           <span className="tk-perf-title-event">{eventName.trim()}</span>
         )}
-        <span className="tk-perf-title-main">{playerName}'s Result</span>
+        <span className="tk-perf-title-main">
+          {playerName}'s Result
+          {/* The dot stays on "Result"'s line, so a wrapped heading never
+              starts its next line with it. */}
+          {placing && (
+            <>
+              {'\u00a0· '}
+              <span className="tk-perf-title-placing">{placing}</span>
+            </>
+          )}
+        </span>
       </span>
     </span>
   );

@@ -166,6 +166,7 @@ export default function StandingsTable({
           key={selectedRow.id}
           onClose={() => setSelectedId(null)}
           row={selectedRow}
+          fieldSize={rows.length}
           playerMap={playerMap}
           mode={mode}
           eventName={eventName}
