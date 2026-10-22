@@ -1495,11 +1495,8 @@ a.tk-btn {
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-/* The place drops to its own line as a whole rather than splitting
-   "3rd of 16" when a long name leaves no room after "Result". */
-.tk-perf-title-placing {
+.tk-perf-title-rank {
   color: var(--gold);
-  white-space: nowrap;
 }
 .tk-perf-stats {
   display: grid;

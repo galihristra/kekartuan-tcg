@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import type { OpponentBreakdown, StandingRow } from '../engine/tournament';
 import {
   formatEventDate,
-  formatPlacing,
-  ordinal,
   resultStats,
   resultLabel,
   roundHistory,
@@ -179,37 +177,5 @@ describe('resultLabel', () => {
     expect(resultLabel({ result: 'L' })).toBe('Loss');
     expect(resultLabel({ result: 'L', doubleLoss: true })).toBe('Double loss');
     expect(resultLabel({ result: 'D' })).toBe('Draw');
-  });
-});
-
-describe('ordinal', () => {
-  it('suffixes places the way they are read aloud', () => {
-    expect([1, 2, 3, 4, 10].map(ordinal)).toEqual([
-      '1st',
-      '2nd',
-      '3rd',
-      '4th',
-      '10th',
-    ]);
-    expect([11, 12, 13].map(ordinal)).toEqual(['11th', '12th', '13th']);
-    expect([21, 22, 23, 101, 111].map(ordinal)).toEqual([
-      '21st',
-      '22nd',
-      '23rd',
-      '101st',
-      '111th',
-    ]);
-  });
-});
-
-describe('formatPlacing', () => {
-  it('prints the place against the size of the field', () => {
-    expect(formatPlacing(row({ rank: 1 }), 16)).toBe('1st of 16');
-  });
-
-  it('flags a tie no tiebreak could separate', () => {
-    expect(formatPlacing(row({ rank: 3, tiebreakNeeded: true }), 8)).toBe(
-      'Tied 3rd of 8',
-    );
   });
 });

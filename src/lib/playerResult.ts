@@ -35,27 +35,6 @@ export function formatGameDiff(diff: number): string {
   return diff > 0 ? `+${diff}` : String(diff);
 }
 
-const ORDINAL_SUFFIX: Record<number, string> = { 1: 'st', 2: 'nd', 3: 'rd' };
-
-/** "1st", "2nd", "3rd", "4th" … with the teens ("11th", "12th", "13th")
- *  taking "th" whatever their last digit. */
-export function ordinal(n: number): string {
-  const teen = n % 100;
-  if (teen >= 11 && teen <= 13) return `${n}th`;
-  return `${n}${ORDINAL_SUFFIX[n % 10] ?? 'th'}`;
-}
-
-/** Where the player finished, as the result heading prints it: "3rd of 16".
- *  A tie nothing could break reads "Tied 3rd", matching the "=" the standings
- *  table marks it with, so nobody shares a place that isn't settled yet. */
-export function formatPlacing(
-  row: Pick<StandingRow, 'rank' | 'tiebreakNeeded'>,
-  fieldSize: number,
-): string {
-  const place = ordinal(row.rank);
-  return `${row.tiebreakNeeded ? `Tied ${place}` : place} of ${fieldSize}`;
-}
-
 /** Opponents and byes are tracked separately on a `StandingRow` (byes have no
  *  opponent and are excluded from the tiebreaker averages), so merge them back
  *  into one round-ordered history. */

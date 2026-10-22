@@ -11,7 +11,6 @@ import {
   resultShareText,
   shareOrSaveImage,
 } from '../lib/shareImage';
-import { formatPlacing } from '../lib/playerResult';
 import Modal from './Modal';
 import PlayerResultDetails from './PlayerResultDetails';
 import PlayerResultShareCard from './PlayerResultShareCard';
@@ -21,8 +20,6 @@ import StatGlossary from './StatGlossary';
 interface PlayerPerformanceModalProps {
   onClose: () => void;
   row: StandingRow;
-  /** How many players the standings rank, so the heading can say "3rd of 16". */
-  fieldSize: number;
   playerMap: Record<string, Player>;
   /** Which tiebreakers this event actually ranks on, so the stat grid shows
    *  the numbers that decided this player's place and no others. */
@@ -51,7 +48,6 @@ function ShareIcon() {
 export default function PlayerPerformanceModal({
   onClose,
   row,
-  fieldSize,
   playerMap,
   mode,
   eventName,
@@ -110,8 +106,6 @@ export default function PlayerPerformanceModal({
     downloadImage(image);
   }
 
-  const placing = formatPlacing(row, fieldSize);
-
   const shareLabel =
     status === 'rendering' ? 'Preparing image…' : 'Share this result';
   // Chrome on desktop Linux and macOS has `navigator.share` but won't take
@@ -129,7 +123,7 @@ export default function PlayerPerformanceModal({
           playerName={row.name}
           player={playerMap[row.id]}
           eventName={eventName}
-          placing={placing}
+          rank={row.rank}
         />
       }
     >
@@ -233,7 +227,6 @@ export default function PlayerPerformanceModal({
         mode={mode}
         eventName={eventName}
         eventDate={eventDate}
-        placing={placing}
       />
     </Modal>
   );

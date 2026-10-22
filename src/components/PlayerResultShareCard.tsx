@@ -12,8 +12,6 @@ interface PlayerResultShareCardProps {
   eventName?: string;
   /** ISO timestamp; omitted or unparseable simply drops the date. */
   eventDate?: string;
-  /** Where the player finished, e.g. "3rd of 16". */
-  placing?: string;
 }
 
 /**
@@ -34,7 +32,7 @@ const PlayerResultShareCard = forwardRef<
   HTMLDivElement,
   PlayerResultShareCardProps
 >(function PlayerResultShareCard(
-  { row, playerMap, mode, eventName, eventDate, placing },
+  { row, playerMap, mode, eventName, eventDate },
   ref,
 ) {
   const date = formatEventDate(eventDate);
@@ -47,7 +45,7 @@ const PlayerResultShareCard = forwardRef<
             playerName={row.name}
             player={playerMap[row.id]}
             eventName={eventName}
-            placing={placing}
+            rank={row.rank}
           />
         </div>
         <PlayerResultDetails row={row} playerMap={playerMap} mode={mode} />
