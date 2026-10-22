@@ -1495,8 +1495,9 @@ a.tk-btn {
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-.tk-perf-title-rank {
+.tk-perf-title-place {
   color: var(--gold);
+  font-size: 0.85em;
 }
 .tk-perf-stats {
   display: grid;
@@ -1803,6 +1804,12 @@ a.tk-btn {
   font-weight: 700;
   letter-spacing: 0.02em;
   font-size: 20px;
+}
+.tk-share-card-head .tk-perf-title-place {
+  font-family: 'Barlow Condensed', 'Inter', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 17px;
 }
 .tk-share-card-foot {
   display: flex;

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { OpponentBreakdown, StandingRow } from '../engine/tournament';
 import {
   formatEventDate,
+  ordinal,
   resultStats,
   resultLabel,
   roundHistory,
@@ -177,5 +178,32 @@ describe('resultLabel', () => {
     expect(resultLabel({ result: 'L' })).toBe('Loss');
     expect(resultLabel({ result: 'L', doubleLoss: true })).toBe('Double loss');
     expect(resultLabel({ result: 'D' })).toBe('Draw');
+  });
+});
+
+describe('ordinal', () => {
+  it('suffixes places the way they are read aloud', () => {
+    expect([1, 2, 3, 4, 10].map(ordinal)).toEqual([
+      '1st',
+      '2nd',
+      '3rd',
+      '4th',
+      '10th',
+    ]);
+  });
+
+  it('gives the teens "th" whatever their last digit', () => {
+    expect([11, 12, 13, 111].map(ordinal)).toEqual([
+      '11th',
+      '12th',
+      '13th',
+      '111th',
+    ]);
+    expect([21, 22, 23, 101].map(ordinal)).toEqual([
+      '21st',
+      '22nd',
+      '23rd',
+      '101st',
+    ]);
   });
 });
