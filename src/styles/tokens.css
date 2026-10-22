@@ -1495,9 +1495,13 @@ a.tk-btn {
   max-width: 100%;
   overflow-wrap: anywhere;
 }
+/* Short enough never to need wrapping, and held to one line because the
+   WebKit sizing quirk described at `.tk-share-card-head` below otherwise breaks
+   "1st place" into two lines in the picture some phones produce. */
 .tk-perf-title-place {
   color: var(--gold);
   font-size: 0.72em;
+  white-space: nowrap;
 }
 .tk-perf-stats {
   display: grid;
@@ -1845,6 +1849,8 @@ a.tk-btn {
 }
 .tk-share-card-date {
   margin-left: auto;
+  /* Same quirk as the heading: WebKit squeezed "21 Oct 2026" onto two lines. */
+  white-space: nowrap;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   color: var(--muted);
