@@ -196,6 +196,7 @@ src/
     shareImage.ts               # share-sheet / download / copy fallback rules
     registrationAdmission.ts    # pure registration → roster logic
     selfRegistration.ts         # localStorage "already registered" flag
+    pairingsText.ts             # round pairings as shareable plain text (unit-tested)
     eventLocation.ts, pokemon.ts, imageCompress.ts, scrollLock.ts, ...
     *.test.ts                   # Vitest suites for the pure logic
   data/pokemon.json             # deck-namesake picker dataset (generated)
