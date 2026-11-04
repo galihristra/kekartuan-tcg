@@ -1,0 +1,172 @@
+import type { StandingRow, StandingsMode } from '../engine/tournament';
+
+/** One played round, either against an opponent or a bye. */
+export interface RoundEntry {
+  round: number;
+  opponentId: string | null;
+  result: 'W' | 'D' | 'L';
+  /** Game score of the match, from this player's side. Null for a bye,
+   *  which is awarded as a match win without any games being played. */
+  gamesFor: number | null;
+  gamesAgainst: number | null;
+  forfeited?: boolean;
+  /** A loss the opponent took too, from a match that ran out of time. */
+  doubleLoss?: boolean;
+  mw: number | null;
+  gw: number | null;
+}
+
+export interface ResultStat {
+  label: string;
+  value: string;
+}
+
+export const RESULT_LABEL = { W: 'Win', D: 'Draw', L: 'Loss' } as const;
+
+/** How a round's result reads in words, telling a double loss apart from a
+ *  loss the opponent won. */
+export function resultLabel(entry: Pick<RoundEntry, 'result' | 'doubleLoss'>) {
+  return entry.doubleLoss ? 'Double loss' : RESULT_LABEL[entry.result];
+}
+
+/** Game differential reads as a signed number, so "+3" is visibly a surplus
+ *  rather than a count of anything. */
+export function formatGameDiff(diff: number): string {
+  return diff > 0 ? `+${diff}` : String(diff);
+}
+
+const ORDINAL_SUFFIX: Record<number, string> = { 1: 'st', 2: 'nd', 3: 'rd' };
+
+/** "1st", "2nd", "3rd", "4th" … with the teens ("11th", "12th", "13th")
+ *  taking "th" whatever their last digit. */
+export function ordinal(n: number): string {
+  const teen = n % 100;
+  if (teen >= 11 && teen <= 13) return `${n}th`;
+  return `${n}${ORDINAL_SUFFIX[n % 10] ?? 'th'}`;
+}
+
+/** Opponents and byes are tracked separately on a `StandingRow` (byes have no
+ *  opponent and are excluded from the tiebreaker averages), so merge them back
+ *  into one round-ordered history. */
+export function roundHistory(row: StandingRow): RoundEntry[] {
+  return [
+    ...row.opponents.map((o) => ({
+      round: o.round,
+      opponentId: o.id,
+      result: o.result,
+      gamesFor: o.gamesFor,
+      gamesAgainst: o.gamesAgainst,
+      forfeited: o.forfeited,
+      doubleLoss: o.doubleLoss,
+      mw: o.mw,
+      gw: o.gw,
+    })),
+    ...row.byeRounds.map((round) => ({
+      round,
+      opponentId: null,
+      result: 'W' as const,
+      gamesFor: null,
+      gamesAgainst: null,
+      mw: null,
+      gw: null,
+    })),
+  ].sort((a, b) => a.round - b.round);
+}
+
+/**
+ * The stat grid for one player, listing exactly the numbers their format
+ * ranks on and in the order the comparator reads them (see `computeStandings`).
+ *
+ * A league is a full round-robin, so every player faces the same field and
+ * opponent strength carries no signal — it sorts on points, then game
+ * differential, then GW%, and never looks at OMW%/OGW%. Showing those two
+ * anyway invites the obvious misreading: two players level on points and
+ * differential appear to have been split by an OGW% that had no say in it.
+ */
+export function resultStats(
+  row: StandingRow,
+  mode: StandingsMode = 'swiss',
+): ResultStat[] {
+  if (mode === 'swiss-bo1') {
+    // GW%/OGW% only echo MW%/OMW% when every match is one game.
+    return [
+      { label: 'Points', value: String(row.points) },
+      { label: 'W-D-L', value: `${row.wins}-${row.draws}-${row.losses}` },
+      { label: 'MW%', value: (row.mw * 100).toFixed(1) },
+      { label: 'OMW%', value: (row.omw * 100).toFixed(1) },
+      { label: 'OOMW%', value: (row.oomw * 100).toFixed(1) },
+    ];
+  }
+  const base: ResultStat[] = [
+    { label: 'Points', value: String(row.points) },
+    { label: 'W-D-L', value: `${row.wins}-${row.draws}-${row.losses}` },
+  ];
+  if (mode === 'league') {
+    return [
+      ...base,
+      { label: 'Diff', value: formatGameDiff(row.gameDiff) },
+      { label: 'GW%', value: (row.gw * 100).toFixed(1) },
+    ];
+  }
+  return [
+    ...base,
+    { label: 'MW%', value: (row.mw * 100).toFixed(1) },
+    { label: 'GW%', value: (row.gw * 100).toFixed(1) },
+    { label: 'OMW%', value: (row.omw * 100).toFixed(1) },
+    { label: 'OGW%', value: (row.ogw * 100).toFixed(1) },
+  ];
+}
+
+/** What each tiebreak abbreviation means, keyed by the label the standings
+ *  table and the stat grid print. Written for players, not organizers. */
+export const STAT_EXPLANATIONS: Record<string, string> = {
+  'MW%':
+    'Match win %: the match points you earned out of the most you could have. Counted as at least 33.3%.',
+  'OMW%':
+    "Opponents' match win %: the average MW% of everyone you played. Higher means you faced a tougher field.",
+  'OOMW%':
+    "Opponents' opponents' match win %: the average OMW% of everyone you played, so how tough your opponents' fields were. Breaks ties OMW% can't.",
+  'GW%': 'Game win %: the games you won out of the games you played.',
+  'OGW%': "Opponents' game win %: the average GW% of everyone you played.",
+  Diff: 'Game difference: games won minus games lost.',
+};
+
+/** Explanations for the stats `resultStats` shows this player, in its order. */
+export function statGlossary(
+  row: StandingRow,
+  mode: StandingsMode = 'swiss',
+): { label: string; text: string }[] {
+  return resultStats(row, mode)
+    .filter((s) => s.label in STAT_EXPLANATIONS)
+    .map((s) => ({ label: s.label, text: STAT_EXPLANATIONS[s.label] }));
+}
+
+const MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/** The event date as it reads on a shared image: "3 Sep 2026". Spelled out from
+ *  a fixed table rather than through `Intl`, whose short month names drift
+ *  between locales and ICU versions ("Sept", "9月") — this string is baked into
+ *  a picture, so it should look the same wherever it was rendered. Read in the
+ *  viewer's own timezone, which for a local store's event is the right day.
+ *
+ *  Returns null for a missing or unparseable timestamp so the footer drops the
+ *  date rather than printing "Invalid Date" into something someone posts. */
+export function formatEventDate(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+}

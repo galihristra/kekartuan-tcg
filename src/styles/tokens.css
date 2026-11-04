@@ -290,11 +290,11 @@ html[data-theme='light'] .tk-root {
   outline: none;
   border-bottom: 1px solid var(--gold);
 }
-/* Smaller than the shared 40px, which is sized for the wide standings table and
+/* Smaller than the shared 48px, which is sized for the wide standings table and
    pairing tickets — the sidebar can't spare that much per sprite. */
 .tk-roster-row .tk-deck-sprite-mini {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
 }
 .tk-x {
   background: none;
@@ -321,6 +321,13 @@ html[data-theme='light'] .tk-root {
   color: var(--text);
   padding: 7px 8px;
   font-size: 13px;
+}
+.tk-create-event .tk-add {
+  /* Name, format, match format and Create don't fit one phone-width row. */
+  flex-wrap: wrap;
+}
+.tk-create-event .tk-add input {
+  flex-basis: 180px;
 }
 .tk-btn {
   font-family: 'Barlow Condensed', sans-serif;
@@ -477,6 +484,48 @@ a.tk-btn {
   width: 100%;
   border-collapse: collapse;
   margin-top: 6px;
+}
+/* A table header that explains itself (InfoTip): reads as the header text,
+   with a dotted underline as the only hint that there's more. */
+.tk-infotip {
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted currentColor;
+  padding: 0;
+  cursor: help;
+}
+.tk-infotip:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.tk-infotip-bubble {
+  position: fixed;
+  z-index: 50;
+  transform: translateX(-50%);
+  max-width: 240px;
+  width: max-content;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+.tk-infotip-bubble[hidden] {
+  display: none;
 }
 .tk-standings th {
   text-align: left;
@@ -795,13 +844,26 @@ a.tk-btn {
 }
 /* Momentary confirmation after copying (icon swaps to a check mark). */
 .tk-icon-btn.is-copied,
-.tk-icon-btn.is-copied:hover {
+.tk-icon-btn.is-copied:hover,
+.tk-btn.ghost.is-copied,
+.tk-btn.ghost.is-copied:hover {
   color: var(--win);
   border-color: var(--win);
 }
 .tk-icon-btn svg {
   width: 18px;
   height: 18px;
+}
+/* Icon plus a short word, for an action the icon alone doesn't explain. Keeps
+   the icon button's height so it still lines up with the rest of the header. */
+.tk-icon-btn--labeled {
+  width: auto;
+  gap: 6px;
+  padding: 0 10px;
+}
+.tk-icon-btn--labeled svg {
+  width: 16px;
+  height: 16px;
 }
 .tk-eventname {
   width: 100%;
@@ -827,6 +889,28 @@ a.tk-btn {
   letter-spacing: 0.02em;
   line-height: 1.25;
   overflow-wrap: anywhere;
+}
+/* Its own row so the pill keeps its natural width under a full-width name. */
+.tk-format-badge-row {
+  margin-top: 8px;
+}
+/* On a past event it sits between the title and the standings heading. */
+.tk-format-badge-row--archived {
+  margin: -6px 0 16px;
+}
+.tk-format-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 999px;
+  color: var(--text);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 /* Location sits on one line with its copy/open actions. It wraps rather than
    squeezing the field, so the actions drop below in the narrow sidebar. */
@@ -1066,6 +1150,44 @@ a.tk-btn {
 
 /* ============ Responsive: tablet & mobile ============ */
 /* Single-column below ~800px covers portrait tablets and phones (see .tk-layout above). */
+/* A place two or more players share, and the organizer's way out of it. */
+.tk-standings-tiemark {
+  margin-left: 3px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.tk-standings-manual {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+.tk-standings-reorder {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.tk-standings-reorder .tk-btn {
+  padding: 0 6px;
+  line-height: 1.6;
+}
+.tk-tie-notice {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gold);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 @media (max-width: 600px) {
   .tk-root {
     padding: 14px;
@@ -1123,9 +1245,14 @@ a.tk-btn {
     font-size: 13.5px;
   }
   /* Tiebreaker columns don't fit a phone; the per-player performance modal
-     carries the same numbers (plus the round-by-round breakdown). */
+     carries the same numbers (plus the round-by-round breakdown). Game
+     differential is the exception: it's a league's first tiebreaker, so it
+     decides visible placings and is short enough to keep. */
   .tk-standings .tk-col-tb {
     display: none;
+  }
+  .tk-standings .tk-col-gameDiff {
+    display: table-cell;
   }
   .tk-deck-slots {
     flex-direction: column;
@@ -1141,15 +1268,24 @@ a.tk-btn {
   .tk-perf-round-name {
     font-size: 16px;
   }
-  .tk-perf-round-name .tk-deck-sprite-xs {
-    width: 28px;
-    height: 28px;
+  /* Keep the bigger sprites from crowding names on a phone: each sprite's
+     transparent padding overlaps its neighbour's, so a deck takes no more
+     width than it did at 40px. */
+  .tk-deck-sprites .tk-deck-sprite-mini {
+    margin: 0 -4px;
+  }
+  .tk-deck-sprites {
+    margin-left: 4px;
+    margin-right: 10px;
   }
   .tk-perf-round-tb {
     font-size: 12.5px;
   }
   .tk-perf-round-result {
     font-size: 23px;
+  }
+  .tk-perf-round-score {
+    font-size: 14px;
   }
 }
 
@@ -1203,19 +1339,29 @@ a.tk-btn {
   object-fit: contain;
   flex-shrink: 0;
 }
+/* Sprite files are 96px squares with transparent padding around the Pokémon,
+   so sizes that divide 96 evenly (48, 32) keep the pixel art crisp. */
 .tk-deck-sprite-mini {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   vertical-align: middle;
   margin-right: 2px;
 }
 .tk-deck-sprite-xs {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   vertical-align: middle;
   margin-right: 2px;
 }
+/* A deck's two sprites are one indivisible badge: keep them on a single line
+   and at full size even when they sit in a flex row that runs out of width
+   (the result modal's title and round list, on a phone), where shrinking this
+   span would otherwise wrap the second sprite under the first. */
 .tk-deck-sprites {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  flex: none;
   margin-right: 10px;
 }
 /* ===================== Self-registration ===================== */
@@ -1328,6 +1474,36 @@ a.tk-btn {
 .tk-perf-title {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
+}
+/* The sprites stay to the left of both lines; the event name is a kicker
+   above the player's name, so a screenshot of this modal carries the event
+   it belongs to. */
+.tk-perf-title-text {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.tk-perf-title-event {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.tk-perf-title-main {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+/* Short enough never to need wrapping, and held to one line because the
+   WebKit sizing quirk described at `.tk-share-card-head` below otherwise breaks
+   "1st place" into two lines in the picture some phones produce. */
+.tk-perf-title-place {
+  color: var(--gold);
+  font-size: 0.72em;
+  white-space: nowrap;
 }
 .tk-perf-stats {
   display: grid;
@@ -1358,6 +1534,48 @@ a.tk-btn {
 .tk-perf-edit {
   width: 100%;
   margin-top: 12px;
+}
+.tk-perf-share {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+}
+.tk-perf-share svg {
+  width: 16px;
+  height: 16px;
+}
+.tk-perf-glossary {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.tk-perf-glossary summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.tk-perf-glossary dl {
+  margin: 8px 0 0;
+  display: grid;
+  gap: 6px;
+}
+.tk-perf-glossary dt {
+  display: inline;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+.tk-perf-glossary dt::after {
+  content: ' — ';
+  color: var(--muted);
+}
+.tk-perf-glossary dd {
+  display: inline;
+  margin: 0;
+  line-height: 1.45;
 }
 .tk-perf-heading {
   font-family: 'Barlow Condensed', sans-serif;
@@ -1412,6 +1630,32 @@ a.tk-btn {
   align-items: center;
   font-size: 15px;
 }
+/* A player's result is about their decks, so the modal shows them larger
+   than the dense standings and pairing lists do. */
+.tk-perf-title .tk-deck-sprite-mini {
+  width: 56px;
+  height: 56px;
+}
+.tk-perf-round-name .tk-deck-sprite-xs {
+  width: 40px;
+  height: 40px;
+}
+/* On a phone the header shares its row with the Share and close buttons, and
+   anything wider than the shared 48px wraps the title onto extra lines. */
+@media (max-width: 600px) {
+  .tk-perf-title .tk-deck-sprite-mini {
+    width: 48px;
+    height: 48px;
+  }
+  /* Opp MW and Opp GW don't fit one line on a phone; give each its own
+     rather than letting the line break inside a figure. */
+  .tk-perf-round-tb-gw {
+    display: block;
+  }
+  .tk-perf-round-tb-sep {
+    display: none;
+  }
+}
 .tk-perf-round-tb {
   display: block;
   font-family: 'JetBrains Mono', monospace;
@@ -1420,10 +1664,20 @@ a.tk-btn {
 }
 .tk-perf-round-result {
   flex: none;
+  white-space: nowrap;
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 700;
   font-size: 18px;
   color: var(--draw);
+}
+/* The match's game score sits next to the W/D/L letter, dimmer and in the
+   same mono face the other numbers use so the letter still reads first. */
+.tk-perf-round-score {
+  margin-left: 5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 400;
+  font-size: 13px;
+  opacity: 0.8;
 }
 .tk-perf-round--W .tk-perf-round-result {
   color: var(--win);
@@ -1485,4 +1739,176 @@ a.tk-btn {
   padding: 8px;
   color: var(--muted);
   font-size: 12px;
+}
+
+/* ===================== Shareable result image ===================== */
+/* Parks the card being rasterized off-screen. A viewport-relative offset (-100vw)
+   would leave part of a 460px card visible on a narrower phone, so the offset is
+   a flat, large one. It stays inside `.tk-root` because that's where the palette's
+   custom properties are declared — lifted anywhere else, every var() in the card
+   would resolve to nothing. */
+.tk-share-stage {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  pointer-events: none;
+}
+.tk-share-card {
+  width: 460px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+.tk-share-card-head {
+  margin-bottom: 14px;
+}
+/* The heading is the one part of the card the capture can get wrong.
+   `.tk-perf-title-text` is a shrink-to-fit flex column, and WebKit resolves
+   that width against the *min*-content of a child carrying `overflow-wrap:
+   anywhere` — so an event name a good deal shorter than the room available
+   still collapses the column, wraps, and draws its second line straight over
+   the player's name. Chromium sizes the same markup correctly, which is why
+   this only shows up in the picture some phones produce.
+
+   Two changes take the guesswork out: the column gets a definite width from
+   the flex algorithm rather than an intrinsic one, and the kicker is held to a
+   single line, which fixes the heading's height whatever the organizer types.
+   The player's name below it still wraps — that one is the headline and must
+   not be cut. */
+.tk-share-card-head .tk-perf-title {
+  display: flex;
+}
+.tk-share-card-head .tk-perf-title-text {
+  flex: 1;
+  min-width: 0;
+}
+.tk-share-card-head .tk-perf-title-event {
+  overflow-wrap: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The shared image is a fixed 460px card captured at 2x, so it has room for
+   bigger sprites than a phone screen; 48px lands on the source's 96px. */
+.tk-share-card .tk-perf-title .tk-deck-sprite-mini {
+  width: 64px;
+  height: 64px;
+}
+.tk-share-card .tk-perf-round-name .tk-deck-sprite-xs {
+  width: 48px;
+  height: 48px;
+}
+/* The card is 460px wide on every device, so it keeps both figures on one
+   line even when a phone generates it. */
+.tk-share-card .tk-perf-round-tb-gw,
+.tk-share-card .tk-perf-round-tb-sep {
+  display: inline;
+}
+.tk-share-card-head .tk-perf-title-main {
+  font-family: 'Barlow Condensed', 'Inter', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 20px;
+}
+.tk-share-card-head .tk-perf-title-place {
+  font-family: 'Barlow Condensed', 'Inter', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 15px;
+}
+.tk-share-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gold-dim);
+}
+.tk-share-card-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.tk-share-card-brand {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 14px;
+  color: var(--gold);
+  line-height: 1.15;
+}
+.tk-share-card-brand small {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.tk-share-card-date {
+  margin-left: auto;
+  /* Same quirk as the heading: WebKit squeezed "21 Oct 2026" onto two lines. */
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+.tk-modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.tk-share-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tk-share-preview-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+/* Three or four buttons depending on what the platform can do, so they share the
+   row evenly and wrap to a second line rather than squeezing on a narrow phone. */
+.tk-share-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tk-share-preview-actions .tk-btn {
+  flex: 1 1 96px;
+}
+.tk-share-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--loss);
+}
+.tk-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: tk-spin 0.7s linear infinite;
+}
+@keyframes tk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tk-spinner {
+    animation-duration: 2.4s;
+  }
 }

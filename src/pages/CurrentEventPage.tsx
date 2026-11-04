@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useScrollLock } from '../hooks/useScrollLock';
 import type { EventStateApi } from '../hooks/useEventState';
@@ -36,7 +36,18 @@ export default function CurrentEventPage({
     ? (ev.playerMap[editingDeckPlayerId] ?? null)
     : null;
   const navigate = useNavigate();
-  useScrollLock(confirming !== null);
+  // The confirm dialog only renders past the loading/error guards below. A
+  // reload landing while it's up (the event refetches on its own) swaps it for
+  // the loading panel, so the lock is tied to what actually renders — keyed off
+  // `confirming` alone it would strand the page unscrollable with no dialog
+  // left to dismiss.
+  const confirmOpen = confirming !== null && !ev.loading && !ev.loadError;
+  useScrollLock(confirmOpen);
+
+  // ...and don't pop the dialog back up once that reload finishes.
+  useEffect(() => {
+    if (ev.loading || ev.loadError) setConfirming(null);
+  }, [ev.loading, ev.loadError]);
 
   /** Archiving doesn't start a replacement any more, so send the organizer to
    *  the dashboard to pick what happens next. */
@@ -152,6 +163,9 @@ export default function CurrentEventPage({
           mode={ev.mode}
           modeLocked={ev.modeLocked}
           onModeChange={ev.setMode}
+          matchFormat={ev.matchFormat}
+          matchFormatLocked={ev.matchFormatLocked}
+          onMatchFormatChange={ev.setMatchFormat}
           roundsInput={ev.roundsInput}
           onRoundsInputChange={ev.setRoundsInput}
           roundsValid={ev.roundsValid}
@@ -176,6 +190,10 @@ export default function CurrentEventPage({
               standings={ev.standings}
               playersCount={ev.players.length}
               roundsValid={ev.roundsValid}
+              eventName={ev.eventName}
+              eventDate={ev.eventCreatedAt}
+              matchFormat={ev.matchFormat}
+              standingsMode={ev.standingsMode}
               onStartRound={ev.startRound}
               onFinishEvent={ev.finishEvent}
               onNewEvent={archiveAndLeave}
@@ -195,14 +213,20 @@ export default function CurrentEventPage({
               playerMap={ev.playerMap}
               standings={ev.standings}
               playersCount={ev.players.length}
+              eventName={ev.eventName}
+              eventDate={ev.eventCreatedAt}
               onStartRound={ev.startRound}
               onFinishEvent={ev.finishEvent}
               onNewEvent={archiveAndLeave}
               onReportGame={ev.reportLeagueGame}
               onDraw={ev.reportLeagueDraw}
+              onDoubleLoss={ev.reportLeagueDoubleLoss}
               onEditMatch={(m) =>
                 ev.reportSwiss(m, { result: null, p1Games: 0, p2Games: 0 })
               }
+              onReorderTied={ev.reorderTiedPlayer}
+              onClearTieOrder={ev.clearStandingsOrder}
+              hasTieOrder={ev.standingsOrder.length > 0}
             />
           )}
 
@@ -230,7 +254,7 @@ export default function CurrentEventPage({
         </div>
       </div>
 
-      {confirming && (
+      {confirmOpen && (
         <div className="tk-modal-backdrop" onClick={() => setConfirming(null)}>
           <div className="tk-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="tk-section-title">

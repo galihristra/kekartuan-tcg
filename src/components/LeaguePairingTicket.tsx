@@ -8,6 +8,7 @@ interface LeaguePairingTicketProps {
   match: SwissMatch;
   onReportGame: (winner: 'p1' | 'p2') => void;
   onDraw: () => void;
+  onDoubleLoss: () => void;
   onEdit: () => void;
   readOnly?: boolean;
 }
@@ -19,6 +20,7 @@ export default function LeaguePairingTicket({
   match,
   onReportGame,
   onDraw,
+  onDoubleLoss,
   onEdit,
   readOnly,
 }: LeaguePairingTicketProps) {
@@ -26,9 +28,9 @@ export default function LeaguePairingTicket({
   const p1Games = match.p1Games ?? 0;
   const p2Games = match.p2Games ?? 0;
   const gameNumber = p1Games + p2Games + 1;
-  // A draw only represents a round timer expiring mid-decider — only offer
-  // it once the score is genuinely tied at 1-1.
-  const canDraw = p1Games === 1 && p2Games === 1;
+  // A draw only represents the round timer expiring with nobody ahead — only
+  // offer it while the game score is level (0-0 or 1-1).
+  const canDraw = p1Games === p2Games;
 
   return (
     <div className="tk-ticket">
@@ -65,6 +67,9 @@ export default function LeaguePairingTicket({
                 Call it a draw
               </button>
             )}
+            <button className="tk-btn ghost tk-btn--sm" onClick={onDoubleLoss}>
+              Double loss
+            </button>
           </div>
         )}
         {!decided && readOnly && <div className="tk-hint">Awaiting result</div>}
@@ -83,6 +88,9 @@ export default function LeaguePairingTicket({
           </span>
         )}
         {match.result === 'draw' && <span className="tk-stamp draw">Draw</span>}
+        {match.result === 'double_loss' && (
+          <span className="tk-stamp loss">Double loss</span>
+        )}
         {decided && !readOnly && !match.forfeited && (
           <button className="tk-btn ghost tk-btn--sm" onClick={onEdit}>
             Edit

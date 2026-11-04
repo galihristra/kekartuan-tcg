@@ -1,0 +1,116 @@
+import type { ReactNode } from 'react';
+import type { Player, StandingRow, StandingsMode } from '../engine/tournament';
+import { resultLabel, resultStats, roundHistory } from '../lib/playerResult';
+import DeckSprites from './DeckSprites';
+
+interface PlayerResultDetailsProps {
+  row: StandingRow;
+  playerMap: Record<string, Player>;
+  /** Which tiebreakers this event actually ranks on. */
+  mode?: StandingsMode;
+  /** Slot between the stats grid and the round list. The share card leaves it
+   *  empty; the modal puts the stat glossary and the admin "Edit deck" button
+   *  here. */
+  afterStats?: ReactNode;
+}
+
+/** The stats grid and the round-by-round list, shared by the modal body and the
+ *  share card. Purely presentational: no buttons, so everything in here is
+ *  safe to rasterize into a picture. */
+export default function PlayerResultDetails({
+  row,
+  playerMap,
+  mode = 'swiss',
+  afterStats,
+}: PlayerResultDetailsProps) {
+  const rounds = roundHistory(row);
+  // Per-round opponent strength is a Swiss tiebreaker. A league never sorts on
+  // it, so printing it under every opponent only suggests it counted.
+  const showOpponentTiebreaks = mode !== 'league';
+  // A Best of 1 score is always 1–0, which says nothing the W/L doesn't, and
+  // its opponents' GW% only echoes their MW%.
+  const bestOf1 = mode === 'swiss-bo1';
+
+  return (
+    <>
+      <div className="tk-perf-stats">
+        {resultStats(row, mode).map((s) => (
+          <div className="tk-perf-stat" key={s.label}>
+            <span className="tk-perf-stat-label">{s.label}</span>
+            <span className="tk-perf-stat-value">{s.value}</span>
+          </div>
+        ))}
+      </div>
+
+      {afterStats}
+
+      <h4 className="tk-perf-heading">Rounds</h4>
+      {rounds.length === 0 ? (
+        <div className="tk-perf-empty">No rounds played yet.</div>
+      ) : (
+        <ul className="tk-perf-rounds">
+          {rounds.map((e) => {
+            const opp = e.opponentId ? playerMap[e.opponentId] : undefined;
+            const hasScore =
+              !bestOf1 && e.gamesFor !== null && e.gamesAgainst !== null;
+            return (
+              <li
+                className={`tk-perf-round tk-perf-round--${e.result}`}
+                key={`${e.round}-${e.opponentId ?? 'bye'}`}
+              >
+                <span className="tk-perf-round-num">{e.round}</span>
+                <span className="tk-perf-round-opp">
+                  <span className="tk-perf-round-name">
+                    <DeckSprites player={opp} size="xs" />
+                    {e.opponentId
+                      ? (opp?.name ?? 'Unknown')
+                      : 'Bye (no opponent)'}
+                  </span>
+                  {showOpponentTiebreaks && e.mw !== null && e.gw !== null ? (
+                    <span className="tk-perf-round-tb">
+                      Opp MW {(e.mw * 100).toFixed(1)}%
+                      {!bestOf1 && (
+                        // Its own span so a phone can drop it onto a second
+                        // line instead of wrapping mid-figure.
+                        <span className="tk-perf-round-tb-gw">
+                          <span className="tk-perf-round-tb-sep"> · </span>
+                          Opp GW {(e.gw * 100).toFixed(1)}%
+                        </span>
+                      )}
+                      {e.forfeited && ' · forfeit'}
+                      {e.doubleLoss && ' · double loss'}
+                    </span>
+                  ) : (
+                    // A forfeit explains an otherwise unearned-looking result,
+                    // so it still has to show once the tiebreakers above it are
+                    // gone.
+                    (e.forfeited || e.doubleLoss) && (
+                      <span className="tk-perf-round-tb">
+                        {e.forfeited ? 'forfeit' : 'double loss'}
+                      </span>
+                    )
+                  )}
+                </span>
+                <span
+                  className="tk-perf-round-result"
+                  title={
+                    hasScore
+                      ? `${resultLabel(e)} ${e.gamesFor}-${e.gamesAgainst}`
+                      : resultLabel(e)
+                  }
+                >
+                  {e.doubleLoss ? 'DL' : e.result}
+                  {hasScore && (
+                    <span className="tk-perf-round-score">
+                      ({e.gamesFor}–{e.gamesAgainst})
+                    </span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
+  );
+}

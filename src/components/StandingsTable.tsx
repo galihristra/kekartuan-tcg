@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import type { Player, StandingRow } from '../engine/tournament';
-import type { Mode } from '../lib/eventStore';
+import type { Player, StandingRow, StandingsMode } from '../engine/tournament';
+import { formatGameDiff, STAT_EXPLANATIONS } from '../lib/playerResult';
 import DeckSprites from './DeckSprites';
+import InfoTip from './InfoTip';
 import PlayerPerformanceModal from './PlayerPerformanceModal';
 
 interface TiebreakColumn {
@@ -10,17 +11,23 @@ interface TiebreakColumn {
   cell: (r: StandingRow) => string;
 }
 
-const TIEBREAK_COLUMNS: Record<'swiss' | 'league', TiebreakColumn[]> = {
+const TIEBREAK_COLUMNS: Record<StandingsMode, TiebreakColumn[]> = {
   swiss: [
     { key: 'omw', header: 'OMW%', cell: (r) => (r.omw * 100).toFixed(1) },
     { key: 'gw', header: 'GW%', cell: (r) => (r.gw * 100).toFixed(1) },
     { key: 'ogw', header: 'OGW%', cell: (r) => (r.ogw * 100).toFixed(1) },
   ],
+  // One game a match leaves GW%/OGW% repeating MW%/OMW%, so Best of 1 shows
+  // the opponents'-opponents number it actually ranks on instead.
+  'swiss-bo1': [
+    { key: 'omw', header: 'OMW%', cell: (r) => (r.omw * 100).toFixed(1) },
+    { key: 'oomw', header: 'OOMW%', cell: (r) => (r.oomw * 100).toFixed(1) },
+  ],
   league: [
     {
       key: 'gameDiff',
       header: 'Diff',
-      cell: (r) => (r.gameDiff > 0 ? `+${r.gameDiff}` : String(r.gameDiff)),
+      cell: (r) => formatGameDiff(r.gameDiff),
     },
     { key: 'gw', header: 'GW%', cell: (r) => (r.gw * 100).toFixed(1) },
   ],
@@ -29,22 +36,31 @@ const TIEBREAK_COLUMNS: Record<'swiss' | 'league', TiebreakColumn[]> = {
 interface StandingsTableProps {
   rows: StandingRow[];
   playerMap: Record<string, Player>;
-  /** Which tiebreak columns to show. Non-league modes (single/double elim don't use this table) fall back to Swiss's columns. */
-  mode?: Mode;
+  /** Which tiebreak columns to show. Single/double elim don't use this table. */
+  mode?: StandingsMode;
+  /** Titles the performance modal, so a shared screenshot names the event. */
+  eventName?: string;
+  /** ISO timestamp, dated into the footer of a shared result image. */
+  eventDate?: string;
   /** When provided, the performance modal offers an "Edit deck" button. */
   onEditDeck?: (playerId: string) => void;
+  /** Organizer-only: settles a tie no result could, by moving one player past
+   *  the neighbour they share a place with. */
+  onReorderTied?: (playerId: string, direction: 'up' | 'down') => void;
 }
 
 export default function StandingsTable({
   rows,
   playerMap,
   mode = 'swiss',
+  eventName,
+  eventDate,
   onEditDeck,
+  onReorderTied,
 }: StandingsTableProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedRow = rows.find((r) => r.id === selectedId) ?? null;
-  const columns = TIEBREAK_COLUMNS[mode === 'league' ? 'league' : 'swiss'];
-
+  const columns = TIEBREAK_COLUMNS[mode];
   return (
     <div className="tk-table-scroll">
       <table className="tk-standings">
@@ -55,8 +71,8 @@ export default function StandingsTable({
             <th>Pts</th>
             <th>W-D-L</th>
             {columns.map((c) => (
-              <th key={c.key} className="tk-col-tb">
-                {c.header}
+              <th key={c.key} className={`tk-col-tb tk-col-${c.key}`}>
+                <InfoTip label={c.header} text={STAT_EXPLANATIONS[c.header]} />
               </th>
             ))}
           </tr>
@@ -64,24 +80,79 @@ export default function StandingsTable({
         <tbody>
           {rows.map((r, i) => {
             const player = playerMap[r.id];
+            // Standard competition ranking repeats a shared place on every row
+            // that holds it, so only the first of them prints the number.
+            const showsRank = i === 0 || rows[i - 1].rank !== r.rank;
+            const groupTop = i === 0 || rows[i - 1].tieGroup !== r.tieGroup;
+            const groupEnd =
+              i === rows.length - 1 || rows[i + 1].tieGroup !== r.tieGroup;
             return (
               <tr
                 key={r.id}
                 className="tk-standings-row--expandable"
                 onClick={() => setSelectedId(r.id)}
               >
-                <td className="tk-num">{i + 1}</td>
+                <td className="tk-num">
+                  {showsRank ? r.rank : ''}
+                  {r.tiebreakNeeded && showsRank && (
+                    <span
+                      className="tk-standings-tiemark"
+                      title="Tied — no tiebreak can separate these players"
+                    >
+                      =
+                    </span>
+                  )}
+                </td>
                 <td>
                   <DeckSprites player={player} />
                   {r.name}
+                  {r.manuallyOrdered && (
+                    <span
+                      className="tk-standings-manual"
+                      title="Placed by the organizer: results alone could not separate these players"
+                    >
+                      set
+                    </span>
+                  )}
                   <span className="tk-standings-caret"> ›</span>
+                  {onReorderTied && r.tieGroup !== null && (
+                    <span
+                      className="tk-standings-reorder"
+                      // The row itself opens the performance modal.
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className="tk-btn ghost tk-btn--sm"
+                        disabled={groupTop}
+                        title="Move above the player tied with them"
+                        aria-label={`Move ${r.name} up`}
+                        onClick={() => onReorderTied(r.id, 'up')}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="tk-btn ghost tk-btn--sm"
+                        disabled={groupEnd}
+                        title="Move below the player tied with them"
+                        aria-label={`Move ${r.name} down`}
+                        onClick={() => onReorderTied(r.id, 'down')}
+                      >
+                        ↓
+                      </button>
+                    </span>
+                  )}
                 </td>
                 <td className="tk-num">{r.points}</td>
                 <td className="tk-num">
                   {r.wins}-{r.draws}-{r.losses}
                 </td>
                 {columns.map((c) => (
-                  <td key={c.key} className="tk-num tk-col-tb">
+                  <td
+                    key={c.key}
+                    className={`tk-num tk-col-tb tk-col-${c.key}`}
+                  >
                     {c.cell(r)}
                   </td>
                 ))}
@@ -96,6 +167,9 @@ export default function StandingsTable({
           onClose={() => setSelectedId(null)}
           row={selectedRow}
           playerMap={playerMap}
+          mode={mode}
+          eventName={eventName}
+          eventDate={eventDate}
           onEditDeck={
             onEditDeck
               ? () => {

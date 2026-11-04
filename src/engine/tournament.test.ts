@@ -200,6 +200,139 @@ describe('Standings match history', () => {
     expect(byId.p3.byeRounds).toEqual([1]);
     expect(byId.p3.opponents.map((o) => o.id)).toEqual(['p1']);
   });
+
+  it('carries each match game score into the opponent breakdown', () => {
+    const players = makePlayers(2);
+    const matches: SwissMatch[] = [
+      {
+        p1Id: 'p1',
+        p2Id: 'p2',
+        round: 1,
+        result: 'p2',
+        p1Games: 1,
+        p2Games: 2,
+      },
+    ];
+    const byId = Object.fromEntries(
+      computeStandings(players, matches, 'league').map((r) => [r.id, r]),
+    );
+
+    // Each side sees the score from its own point of view.
+    expect(byId.p1.opponents).toMatchObject([
+      { result: 'L', gamesFor: 1, gamesAgainst: 2 },
+    ]);
+    expect(byId.p2.opponents).toMatchObject([
+      { result: 'W', gamesFor: 2, gamesAgainst: 1 },
+    ]);
+  });
+
+  it('flags a forfeited match in the opponent breakdown', () => {
+    const players = makePlayers(2);
+    const { matches } = dropPlayer(
+      players,
+      [
+        {
+          p1Id: 'p1',
+          p2Id: 'p2',
+          round: 1,
+          result: null,
+          p1Games: 0,
+          p2Games: 0,
+        },
+      ],
+      'p2',
+    );
+    const byId = Object.fromEntries(
+      computeStandings(players, matches, 'league').map((r) => [r.id, r]),
+    );
+
+    expect(byId.p1.opponents).toMatchObject([
+      { result: 'W', gamesFor: 2, gamesAgainst: 0, forfeited: true },
+    ]);
+  });
+});
+
+describe('Time-limit results', () => {
+  // p1 and p2 run out of time; p3 and p4 play a normal match alongside them.
+  const players = makePlayers(4);
+  const timedOut = (result: 'draw' | 'double_loss'): SwissMatch[] => [
+    { p1Id: 'p1', p2Id: 'p2', round: 1, result, p1Games: 0, p2Games: 0 },
+    { p1Id: 'p3', p2Id: 'p4', round: 1, result: 'p1', p1Games: 1, p2Games: 0 },
+  ];
+
+  it('gives each side of a draw 1 point and a draw on their record', () => {
+    const byId = Object.fromEntries(
+      computeStandings(players, timedOut('draw'), 'swiss-bo1').map((r) => [
+        r.id,
+        r,
+      ]),
+    );
+
+    for (const id of ['p1', 'p2']) {
+      expect(byId[id]).toMatchObject({
+        points: 1,
+        wins: 0,
+        draws: 1,
+        losses: 0,
+      });
+      expect(byId[id].mw).toBeCloseTo(1 / 3);
+      expect(byId[id].opponents).toMatchObject([{ result: 'D' }]);
+    }
+  });
+
+  it('gives both sides of a double loss 0 points and a loss', () => {
+    const byId = Object.fromEntries(
+      computeStandings(players, timedOut('double_loss'), 'swiss-bo1').map(
+        (r) => [r.id, r],
+      ),
+    );
+
+    for (const id of ['p1', 'p2']) {
+      expect(byId[id]).toMatchObject({
+        points: 0,
+        wins: 0,
+        draws: 0,
+        losses: 1,
+      });
+      // Counted as a played match, so MW% falls to its 33.3% floor.
+      expect(byId[id].mw).toBeCloseTo(1 / 3);
+      expect(byId[id].opponents).toMatchObject([
+        { result: 'L', doubleLoss: true },
+      ]);
+    }
+    // An ordinary loss carries no double-loss flag.
+    expect(byId.p4.opponents[0].doubleLoss).toBeUndefined();
+  });
+
+  it("counts a double loss as a loss in an opponent's OMW%", () => {
+    const matches: SwissMatch[] = [
+      ...timedOut('double_loss'),
+      {
+        p1Id: 'p1',
+        p2Id: 'p3',
+        round: 2,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+      {
+        p1Id: 'p2',
+        p2Id: 'p4',
+        round: 2,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+    ];
+    const byId = Object.fromEntries(
+      computeStandings(players, matches).map((r) => [r.id, r]),
+    );
+
+    // p1 is 1-0-1 after a double loss and a win: 3 of a possible 6 points.
+    expect(byId.p1.mw).toBeCloseTo(0.5);
+    // p3 faced p4 (0-2, floored to 33.3%) and p1 (50%).
+    expect(byId.p3.omw).toBeCloseTo((1 / 3 + 0.5) / 2);
+  });
 });
 
 describe('Single elimination', () => {
@@ -325,6 +458,24 @@ describe('Round-robin schedule', () => {
   );
 });
 
+/** One decided match: `winner` took it `for`-`against` in games. */
+function w(
+  winner: string,
+  loser: string,
+  round: number,
+  gamesFor: number,
+  gamesAgainst: number,
+): SwissMatch {
+  return {
+    p1Id: winner,
+    p2Id: loser,
+    round,
+    result: 'p1',
+    p1Games: gamesFor,
+    p2Games: gamesAgainst,
+  };
+}
+
 describe('computeStandings league mode', () => {
   it('sorts by points, then game differential, then game win %', () => {
     // p1 beats p3 2-0, p2 beats p3 2-1 — p1 and p2 tied on points (3 each
@@ -356,6 +507,114 @@ describe('computeStandings league mode', () => {
     expect(standings[2].id).toBe('p3');
   });
 
+  it('breaks a points/diff/GW% tie on head-to-head', () => {
+    // Galih (p1) and Naufal (p2) both finish 1-1, each winning 2-0 and losing
+    // 0-2, so points, differential and GW% are identical. Galih won the match
+    // between them.
+    const players = makePlayers(4);
+    const matches: SwissMatch[] = [
+      w('p1', 'p2', 1, 2, 0), // Galih beat Naufal 2-0
+      w('p3', 'p1', 2, 2, 0), // Galih then lost 0-2
+      w('p2', 'p4', 2, 2, 0), // Naufal beat someone else 2-0
+    ];
+    const standings = computeStandings(players, matches, 'league');
+    const [galih, naufal] = ['p1', 'p2'].map((id) =>
+      standings.find((r) => r.id === id)!,
+    );
+
+    expect(galih.points).toBe(naufal.points);
+    expect(galih.gameDiff).toBe(naufal.gameDiff);
+    expect(galih.gw).toBe(naufal.gw);
+    expect(standings.indexOf(galih)).toBeLessThan(standings.indexOf(naufal));
+    expect(galih.rank).toBeLessThan(naufal.rank);
+    expect(galih.tiebreakNeeded).toBe(false);
+  });
+
+  it('shares a place, and skips the ones it fills, when nothing separates two players', () => {
+    // Both undefeated, every win 2-0, and they have not met — the real
+    // Kekartuan case. Points, differential and GW% are all exactly equal.
+    const players = makePlayers(6);
+    const matches: SwissMatch[] = [
+      w('p1', 'p3', 1, 2, 0),
+      w('p1', 'p4', 2, 2, 0),
+      w('p2', 'p5', 1, 2, 0),
+      w('p2', 'p6', 2, 2, 0),
+      w('p3', 'p5', 3, 2, 0),
+    ];
+    const standings = computeStandings(players, matches, 'league');
+
+    expect(standings.slice(0, 2).map((r) => r.rank)).toEqual([1, 1]);
+    expect(standings.slice(0, 2).every((r) => r.tiebreakNeeded)).toBe(true);
+    // Two players hold 1st, so the next player down is 3rd, not 2nd.
+    expect(standings[2].rank).toBe(3);
+    expect(standings[2].tiebreakNeeded).toBe(false);
+  });
+
+  it('cannot be reordered by roster position alone', () => {
+    // Roster order used to decide a perfect tie outright. It still breaks the
+    // final stalemate, but both players now share the place either way.
+    const players = makePlayers(4);
+    const matches: SwissMatch[] = [
+      w('p1', 'p3', 1, 2, 0),
+      w('p2', 'p4', 1, 2, 0),
+    ];
+    const asIs = computeStandings(players, matches, 'league');
+    const flipped = computeStandings(
+      [players[1], players[0], players[2], players[3]],
+      matches,
+      'league',
+    );
+
+    expect(asIs.slice(0, 2).map((r) => r.rank)).toEqual([1, 1]);
+    expect(flipped.slice(0, 2).map((r) => r.rank)).toEqual([1, 1]);
+  });
+
+  it('lets the organizer settle a tie head-to-head cannot', () => {
+    const players = makePlayers(4);
+    const matches: SwissMatch[] = [
+      w('p1', 'p3', 1, 2, 0),
+      w('p2', 'p4', 1, 2, 0),
+    ];
+
+    const settled = computeStandings(players, matches, 'league', ['p2', 'p1']);
+    expect(settled.slice(0, 2).map((r) => r.id)).toEqual(['p2', 'p1']);
+    expect(settled.slice(0, 2).map((r) => r.rank)).toEqual([1, 2]);
+    expect(settled.slice(0, 2).every((r) => r.manuallyOrdered)).toBe(true);
+    expect(settled.slice(0, 2).some((r) => r.tiebreakNeeded)).toBe(false);
+  });
+
+  it('ignores an organizer ordering that would jump a player they finished behind', () => {
+    // p1 leads on points. Naming p3 first must not lift them over p1 — a
+    // manual order only ever separates players already level.
+    const players = makePlayers(3);
+    const matches: SwissMatch[] = [
+      w('p1', 'p2', 1, 2, 0),
+      w('p1', 'p3', 2, 2, 0),
+    ];
+
+    const standings = computeStandings(players, matches, 'league', [
+      'p3',
+      'p1',
+    ]);
+    expect(standings[0].id).toBe('p1');
+    expect(standings[0].rank).toBe(1);
+  });
+
+  it('leaves a three-way head-to-head cycle sharing one place', () => {
+    // p1 beat p2, p2 beat p3, p3 beat p1 — everyone 1-1 in the mini-league, so
+    // head-to-head scores them equally and no result can rank them.
+    const players = makePlayers(3);
+    const matches: SwissMatch[] = [
+      w('p1', 'p2', 1, 2, 1),
+      w('p2', 'p3', 2, 2, 1),
+      w('p3', 'p1', 3, 2, 1),
+    ];
+    const standings = computeStandings(players, matches, 'league');
+
+    expect(standings.map((r) => r.rank)).toEqual([1, 1, 1]);
+    expect(standings.every((r) => r.tiebreakNeeded)).toBe(true);
+  });
+
   it('defaults to swiss ordering (omw-based) with no mode argument', () => {
     const players = makePlayers(3);
     const matches: SwissMatch[] = [
@@ -371,6 +630,167 @@ describe('computeStandings league mode', () => {
     const withDefault = computeStandings(players, matches);
     const withSwiss = computeStandings(players, matches, 'swiss');
     expect(withDefault.map((r) => r.id)).toEqual(withSwiss.map((r) => r.id));
+  });
+});
+
+describe('computeStandings Best of 1 mode', () => {
+  /** Plays `rounds` Bo1 Swiss rounds with random winners and no draws. */
+  function playBo1(n: number, rounds: number): SwissMatch[] {
+    const players = makePlayers(n);
+    const matches: SwissMatch[] = [];
+    for (let r = 1; r <= rounds; r++) {
+      const { pairings, byePlayerId } = generateSwissPairings(
+        players,
+        matches,
+        r,
+        'swiss-bo1',
+      );
+      pairings.forEach(({ p1Id, p2Id }) => {
+        const p1Wins = Math.random() < 0.5;
+        matches.push({
+          p1Id,
+          p2Id,
+          round: r,
+          result: p1Wins ? 'p1' : 'p2',
+          p1Games: p1Wins ? 1 : 0,
+          p2Games: p1Wins ? 0 : 1,
+        });
+      });
+      if (byePlayerId)
+        matches.push({ isBye: true, p1Id: byePlayerId, round: r });
+    }
+    return matches;
+  }
+
+  it('sets OOMW% to the average of the opponents OMW%', () => {
+    const players = makePlayers(7);
+    const rows = computeStandings(players, playBo1(7, 4), 'swiss-bo1');
+    const omw = new Map(rows.map((r) => [r.id, r.omw]));
+    rows.forEach((r) => {
+      const expected =
+        r.opponents.reduce((sum, o) => sum + omw.get(o.id)!, 0) /
+        r.opponents.length;
+      expect(r.oomw).toBeCloseTo(expected, 10);
+    });
+  });
+
+  it.each([5, 8, 12])(
+    'orders by points, then OMW%, then OOMW% for n=%i',
+    (n) => {
+      const players = makePlayers(n);
+      const rows = computeStandings(players, playBo1(n, 4), 'swiss-bo1');
+      for (let i = 1; i < rows.length; i++) {
+        const a = rows[i - 1];
+        const b = rows[i];
+        // Same precision the engine compares at, so float noise reads as level.
+        const key = (r: typeof a) =>
+          [r.points, r.omw, r.oomw].map((v) => Math.round(v * 1e9));
+        const [ka, kb] = [key(a), key(b)];
+        const firstDiff = ka.findIndex((v, k) => v !== kb[k]);
+        // Fully level rows fall through to head-to-head; otherwise the first
+        // differing tiebreak must favour the row placed higher.
+        if (firstDiff !== -1) {
+          expect(ka[firstDiff]).toBeGreaterThan(kb[firstDiff]);
+        }
+      }
+    },
+  );
+
+  it('does not let GW% separate players Best of 1 cannot tell apart', () => {
+    // p1 and p2 each beat one opponent, with identical opposition. Their game
+    // scores differ (a malformed 2-0 against a proper 1-0), which Best of 3
+    // would rank on and Best of 1 must ignore.
+    const players = makePlayers(4);
+    const matches: SwissMatch[] = [
+      {
+        p1Id: 'p1',
+        p2Id: 'p3',
+        round: 1,
+        result: 'p1',
+        p1Games: 2,
+        p2Games: 0,
+      },
+      {
+        p1Id: 'p2',
+        p2Id: 'p4',
+        round: 1,
+        result: 'p1',
+        p1Games: 1,
+        p2Games: 1,
+      },
+    ];
+    const bo1 = computeStandings(players, matches, 'swiss-bo1');
+    const top = bo1.filter((r) => r.id === 'p1' || r.id === 'p2');
+    expect(top.map((r) => r.rank)).toEqual([1, 1]);
+    expect(top.every((r) => r.tiebreakNeeded)).toBe(true);
+
+    const bo3 = computeStandings(players, matches, 'swiss');
+    expect(bo3[0].id).toBe('p1');
+    expect(bo3[1].rank).toBe(2);
+  });
+
+  it('does not let float noise in OMW% decide a place', () => {
+    // A real 18-player, 4-round event. 'f' and 'g' faced opponents with the
+    // same match-win percentages (75, 50, 50, 33.3) in a different order, so
+    // their OMW% sums land one ulp apart. They are level on OMW%, and 'f' has
+    // the far better OOMW% (54.7 vs 45.3), so 'f' must place above 'g'.
+    const ids = 'abcdefghijklmnopqr'.split('');
+    const players: Player[] = ids.map((id) => ({ id, name: id }));
+    // [round, winner, loser]
+    const results: [number, string, string][] = [
+      [1, 'l', 'r'],
+      [1, 'f', 'h'],
+      [1, 'i', 'b'],
+      [1, 'j', 'c'],
+      [1, 'q', 'g'],
+      [1, 'm', 'e'],
+      [1, 'k', 'o'],
+      [1, 'n', 'p'],
+      [1, 'd', 'a'],
+      [2, 'd', 'f'],
+      [2, 'i', 'j'],
+      [2, 'l', 'k'],
+      [2, 'n', 'm'],
+      [2, 'q', 'a'],
+      [2, 'b', 'c'],
+      [2, 'e', 'g'],
+      [2, 'o', 'h'],
+      [2, 'r', 'p'],
+      [3, 'i', 'l'],
+      [3, 'd', 'n'],
+      [3, 'k', 'q'],
+      [3, 'p', 'g'],
+      [3, 'j', 'f'],
+      [3, 'b', 'm'],
+      [3, 'o', 'a'],
+      [3, 'c', 'h'],
+      [3, 'e', 'r'],
+      [4, 'i', 'd'],
+      [4, 'b', 'l'],
+      [4, 'k', 'j'],
+      [4, 'o', 'n'],
+      [4, 'm', 'f'],
+      [4, 'c', 'r'],
+      [4, 'q', 'e'],
+      [4, 'g', 'h'],
+      [4, 'p', 'a'],
+    ];
+    const matches: SwissMatch[] = results.map(([round, p1Id, p2Id]) => ({
+      p1Id,
+      p2Id,
+      round,
+      result: 'p1',
+      p1Games: 1,
+      p2Games: 0,
+    }));
+    const rows = computeStandings(players, matches, 'swiss-bo1');
+    const f = rows.find((r) => r.id === 'f')!;
+    const g = rows.find((r) => r.id === 'g')!;
+    expect(f.points).toBe(g.points);
+    expect(f.omw).toBeCloseTo(g.omw, 12);
+    expect(f.oomw).toBeGreaterThan(g.oomw);
+    expect(f.rank).toBeLessThan(g.rank);
+    expect(f.tiebreakNeeded).toBe(false);
   });
 });
 
@@ -457,6 +877,26 @@ describe('dropPlayer', () => {
       forfeited: true,
     });
     expect(nextMatches[3]).toEqual(matches[3]);
+  });
+  it('scores a Best of 1 forfeit 1-0', () => {
+    const players = makePlayers(2);
+    const matches: SwissMatch[] = [
+      {
+        p1Id: 'p1',
+        p2Id: 'p2',
+        round: 1,
+        result: null,
+        p1Games: 0,
+        p2Games: 0,
+      },
+    ];
+    const { matches: next } = dropPlayer(players, matches, 'p2', 1);
+    expect(next[0]).toMatchObject({
+      result: 'p1',
+      p1Games: 1,
+      p2Games: 0,
+      forfeited: true,
+    });
   });
 });
 

@@ -1,0 +1,209 @@
+import { describe, it, expect } from 'vitest';
+import type { OpponentBreakdown, StandingRow } from '../engine/tournament';
+import {
+  formatEventDate,
+  ordinal,
+  resultStats,
+  resultLabel,
+  roundHistory,
+  statGlossary,
+} from './playerResult';
+
+function opponent(
+  round: number,
+  overrides: Partial<OpponentBreakdown> = {},
+): OpponentBreakdown {
+  return {
+    id: `opp-${round}`,
+    round,
+    result: 'W',
+    gamesFor: 2,
+    gamesAgainst: 1,
+    mw: 0.5,
+    gw: 0.5,
+    ...overrides,
+  };
+}
+
+function row(overrides: Partial<StandingRow> = {}): StandingRow {
+  return {
+    id: 'p1',
+    name: 'Galih',
+    points: 9,
+    matchesPlayed: 3,
+    wins: 3,
+    draws: 0,
+    losses: 0,
+    mw: 1,
+    gw: 0.75,
+    omw: 0.5,
+    ogw: 0.4,
+    oomw: 0.45,
+    gameDiff: 3,
+    opponents: [],
+    byeRounds: [],
+    rank: 1,
+    tiebreakNeeded: false,
+    manuallyOrdered: false,
+    tieGroup: null,
+    ...overrides,
+  };
+}
+
+describe('roundHistory', () => {
+  it('merges byes back into the played rounds in round order', () => {
+    const history = roundHistory(
+      row({ opponents: [opponent(3), opponent(1)], byeRounds: [2] }),
+    );
+
+    expect(history.map((e) => e.round)).toEqual([1, 2, 3]);
+    expect(history.map((e) => e.opponentId)).toEqual(['opp-1', null, 'opp-3']);
+  });
+
+  it('gives a bye a match win with no game score', () => {
+    const [bye] = roundHistory(row({ byeRounds: [1] }));
+
+    expect(bye.result).toBe('W');
+    expect(bye.gamesFor).toBeNull();
+    expect(bye.gamesAgainst).toBeNull();
+    // Byes are excluded from the tiebreaker averages, so they carry no
+    // opponent percentages to show.
+    expect(bye.mw).toBeNull();
+    expect(bye.gw).toBeNull();
+  });
+
+  it('carries a forfeit through to the round it was scored in', () => {
+    const [played] = roundHistory(
+      row({ opponents: [opponent(1, { result: 'L', forfeited: true })] }),
+    );
+
+    expect(played.result).toBe('L');
+    expect(played.forfeited).toBe(true);
+  });
+});
+
+describe('resultStats', () => {
+  it('renders the tiebreakers as one-decimal percentages', () => {
+    const stats = resultStats(row({ mw: 1, gw: 0.75, omw: 0.5, ogw: 0.4 }));
+
+    expect(stats).toEqual([
+      { label: 'Points', value: '9' },
+      { label: 'W-D-L', value: '3-0-0' },
+      { label: 'MW%', value: '100.0' },
+      { label: 'GW%', value: '75.0' },
+      { label: 'OMW%', value: '50.0' },
+      { label: 'OGW%', value: '40.0' },
+    ]);
+  });
+
+  it('shows a league the tiebreakers it actually ranks on, and no others', () => {
+    // A league sorts on points, then game differential, then GW% — opponent
+    // strength never gets a say, so listing OMW%/OGW% here would suggest a
+    // placing was decided by a number that took no part in it.
+    const stats = resultStats(
+      row({ mw: 1, gw: 0.75, omw: 0.5, ogw: 0.4, gameDiff: 3 }),
+      'league',
+    );
+
+    expect(stats).toEqual([
+      { label: 'Points', value: '9' },
+      { label: 'W-D-L', value: '3-0-0' },
+      { label: 'Diff', value: '+3' },
+      { label: 'GW%', value: '75.0' },
+    ]);
+  });
+
+  it('shows Best of 1 a W-D-L record and the opponents tiebreaks it ranks on', () => {
+    // One game a match, so GW%/OGW% would only repeat MW%/OMW%.
+    const stats = resultStats(
+      row({ wins: 2, losses: 1, mw: 2 / 3, omw: 0.5, oomw: 0.45 }),
+      'swiss-bo1',
+    );
+
+    expect(stats).toEqual([
+      { label: 'Points', value: '9' },
+      { label: 'W-D-L', value: '2-0-1' },
+      { label: 'MW%', value: '66.7' },
+      { label: 'OMW%', value: '50.0' },
+      { label: 'OOMW%', value: '45.0' },
+    ]);
+  });
+
+  it('signs the game differential so a surplus reads as one', () => {
+    const diffOf = (gameDiff: number) =>
+      resultStats(row({ gameDiff }), 'league').find((s) => s.label === 'Diff')
+        ?.value;
+
+    expect(diffOf(3)).toBe('+3');
+    expect(diffOf(0)).toBe('0');
+    expect(diffOf(-3)).toBe('-3');
+  });
+});
+
+describe('statGlossary', () => {
+  it.each([
+    ['swiss-bo1', ['MW%', 'OMW%', 'OOMW%']],
+    ['swiss', ['MW%', 'GW%', 'OMW%', 'OGW%']],
+    ['league', ['Diff', 'GW%']],
+  ] as const)('explains every tiebreak %s shows, in order', (mode, labels) => {
+    const glossary = statGlossary(row(), mode);
+
+    expect(glossary.map((g) => g.label)).toEqual(labels);
+    // Points and the record need no explaining; everything else must.
+    const shown = resultStats(row(), mode)
+      .map((s) => s.label)
+      .filter((l) => l !== 'Points' && !l.startsWith('W-'));
+    expect(shown).toEqual(labels);
+    glossary.forEach((g) => expect(g.text.length).toBeGreaterThan(0));
+  });
+});
+
+describe('formatEventDate', () => {
+  it('formats a timestamp the way the share footer reads it', () => {
+    // Built from local parts so the expectation holds in any timezone.
+    const iso = new Date(2026, 8, 3, 12).toISOString();
+
+    expect(formatEventDate(iso)).toBe('3 Sep 2026');
+  });
+
+  it('returns null rather than printing a broken date into an image', () => {
+    expect(formatEventDate(undefined)).toBeNull();
+    expect(formatEventDate('')).toBeNull();
+    expect(formatEventDate('not a date')).toBeNull();
+  });
+});
+
+describe('resultLabel', () => {
+  it('tells a double loss apart from a loss the opponent won', () => {
+    expect(resultLabel({ result: 'L' })).toBe('Loss');
+    expect(resultLabel({ result: 'L', doubleLoss: true })).toBe('Double loss');
+    expect(resultLabel({ result: 'D' })).toBe('Draw');
+  });
+});
+
+describe('ordinal', () => {
+  it('suffixes places the way they are read aloud', () => {
+    expect([1, 2, 3, 4, 10].map(ordinal)).toEqual([
+      '1st',
+      '2nd',
+      '3rd',
+      '4th',
+      '10th',
+    ]);
+  });
+
+  it('gives the teens "th" whatever their last digit', () => {
+    expect([11, 12, 13, 111].map(ordinal)).toEqual([
+      '11th',
+      '12th',
+      '13th',
+      '111th',
+    ]);
+    expect([21, 22, 23, 101].map(ordinal)).toEqual([
+      '21st',
+      '22nd',
+      '23rd',
+      '101st',
+    ]);
+  });
+});

@@ -12,7 +12,10 @@ export interface Player {
   registrationId?: string;
 }
 
-export type MatchResult = 'p1' | 'p2' | 'draw';
+/** `draw` and `double_loss` are what a match that runs out of time can end
+ *  in: a draw gives both players a draw's point, a double loss gives both
+ *  nothing and counts as a loss for each. */
+export type MatchResult = 'p1' | 'p2' | 'draw' | 'double_loss';
 
 /**
  * A Swiss-round match. Regular matches carry a `p2Id` and (once played) a
@@ -39,6 +42,14 @@ export interface OpponentBreakdown {
   round: number;
   /** Outcome from the perspective of the player this breakdown belongs to. */
   result: MatchOutcome;
+  /** Games won in this match by the player this breakdown belongs to. */
+  gamesFor: number;
+  /** Games won in this match by the opponent. */
+  gamesAgainst: number;
+  /** Set when the match was decided by a drop rather than being played out. */
+  forfeited?: boolean;
+  /** Set when this loss was a double loss: the opponent lost it too. */
+  doubleLoss?: boolean;
   mw: number;
   gw: number;
 }
@@ -55,11 +66,29 @@ export interface StandingRow {
   gw: number;
   omw: number;
   ogw: number;
+  /** Opponents' average OMW% — Best of 1 Swiss's second tiebreak, standing in
+   *  for the game-based ones a single game per match can't feed. */
+  oomw: number;
   /** Games won minus games lost. League's primary tiebreak; harmless for Swiss. */
   gameDiff: number;
   opponents: OpponentBreakdown[];
   /** Rounds the player sat out with a bye (counted as a win, no opponent). */
   byeRounds: number[];
+  /** Placing under standard competition ranking: players nothing separates
+   *  share the higher place and the places they fill are skipped, so a tie for
+   *  1st reads 1, 1, 3 — the way a sports table does it. */
+  rank: number;
+  /** No tiebreak could separate this player from someone sharing their rank.
+   *  The organizer has to settle it (a playoff, a draw) before prizes. */
+  tiebreakNeeded: boolean;
+  /** This player's place inside an otherwise unbreakable tie was set by the
+   *  organizer rather than by results. */
+  manuallyOrdered: boolean;
+  /** Identifies the set of players no tiebreak could separate from this one,
+   *  or null when nothing is tied with them. It stays stable once an organizer
+   *  orders the group, which is what lets them keep adjusting it — `rank` and
+   *  `tiebreakNeeded` both stop marking the tie at that point. */
+  tieGroup: number | null;
 }
 
 export interface SwissPairing {
@@ -161,16 +190,35 @@ interface PlayerStat {
   losses: number;
   gamesWon: number;
   gamesPlayed: number;
-  opponents: { id: string; round: number; result: MatchOutcome }[];
+  opponents: Omit<OpponentBreakdown, 'mw' | 'gw'>[];
   byeRounds: number[];
 }
 
-export type StandingsMode = 'swiss' | 'league';
+/** Which tiebreakers an event ranks on. `swiss` is Best of 3; `swiss-bo1`
+ *  plays one game per match, so GW%/OGW% would only echo MW%/OMW% and it
+ *  breaks ties on opponents' opponents instead. */
+export type StandingsMode = 'swiss' | 'swiss-bo1' | 'league';
 
+/** Games per Swiss match, fixed when the event is set up. */
+export type MatchFormat = 'bo1' | 'bo3';
+
+function swissStandingsMode(format: MatchFormat): StandingsMode {
+  return format === 'bo1' ? 'swiss-bo1' : 'swiss';
+}
+
+/**
+ * The standings table for one event.
+ *
+ * `manualOrder` is the organizer's own ordering of players a tiebreak could
+ * not separate, listed best-first. It is consulted only inside a tied group,
+ * so it can settle a 2nd/3rd prize without letting anyone jump a player they
+ * genuinely finished behind.
+ */
 function computeStandings(
   players: Player[],
   matches: SwissMatch[],
   mode: StandingsMode = 'swiss',
+  manualOrder: string[] = [],
 ): StandingRow[] {
   const stats: Record<string, PlayerStat> = {};
   players.forEach((p) => {
@@ -205,15 +253,44 @@ function computeStandings(
     if (!s1 || !s2 || !m.result) return;
     s1.matchesPlayed += 1;
     s2.matchesPlayed += 1;
-    const outcome1: MatchOutcome =
-      m.result === 'p1' ? 'W' : m.result === 'p2' ? 'L' : 'D';
-    const outcome2: MatchOutcome =
-      outcome1 === 'W' ? 'L' : outcome1 === 'L' ? 'W' : 'D';
-    s1.opponents.push({ id: p2Id, round: m.round, result: outcome1 });
-    s2.opponents.push({ id: m.p1Id, round: m.round, result: outcome2 });
-    s1.gamesWon += m.p1Games || 0;
-    s2.gamesWon += m.p2Games || 0;
-    const totalGames = (m.p1Games || 0) + (m.p2Games || 0);
+    const doubleLoss = m.result === 'double_loss';
+    const outcome1: MatchOutcome = doubleLoss
+      ? 'L'
+      : m.result === 'p1'
+        ? 'W'
+        : m.result === 'p2'
+          ? 'L'
+          : 'D';
+    const outcome2: MatchOutcome = doubleLoss
+      ? 'L'
+      : outcome1 === 'W'
+        ? 'L'
+        : outcome1 === 'L'
+          ? 'W'
+          : 'D';
+    const p1Games = m.p1Games || 0;
+    const p2Games = m.p2Games || 0;
+    s1.opponents.push({
+      id: p2Id,
+      round: m.round,
+      result: outcome1,
+      gamesFor: p1Games,
+      gamesAgainst: p2Games,
+      forfeited: m.forfeited,
+      ...(doubleLoss && { doubleLoss: true }),
+    });
+    s2.opponents.push({
+      id: m.p1Id,
+      round: m.round,
+      result: outcome2,
+      gamesFor: p2Games,
+      gamesAgainst: p1Games,
+      forfeited: m.forfeited,
+      ...(doubleLoss && { doubleLoss: true }),
+    });
+    s1.gamesWon += p1Games;
+    s2.gamesWon += p2Games;
+    const totalGames = p1Games + p2Games;
     s1.gamesPlayed += totalGames;
     s2.gamesPlayed += totalGames;
     if (m.result === 'p1') {
@@ -224,6 +301,11 @@ function computeStandings(
       s2.points += MATCH_POINTS.win;
       s2.wins += 1;
       s1.losses += 1;
+    } else if (doubleLoss) {
+      // Both take a loss's zero points, and the match still counts towards
+      // each player's MW% as one they could have won.
+      s1.losses += 1;
+      s2.losses += 1;
     } else {
       s1.points += MATCH_POINTS.draw;
       s2.points += MATCH_POINTS.draw;
@@ -264,6 +346,8 @@ function computeStandings(
       gw: gw(p.id),
       omw,
       ogw,
+      // Filled in below, once every player's OMW% exists.
+      oomw: MIN_PCT,
       gameDiff: s.gamesWon - (s.gamesPlayed - s.gamesWon),
       opponents: opp.map((o) => ({
         ...o,
@@ -271,16 +355,148 @@ function computeStandings(
         gw: gw(o.id),
       })),
       byeRounds: s.byeRounds,
+      // Stamped by `orderStandings` once every row exists to compare against.
+      rank: 0,
+      tiebreakNeeded: false,
+      manuallyOrdered: false,
+      tieGroup: null,
     };
   });
 
-  rows.sort(
-    mode === 'league'
-      ? (a, b) => b.points - a.points || b.gameDiff - a.gameDiff || b.gw - a.gw
-      : (a, b) =>
-          b.points - a.points || b.omw - a.omw || b.gw - a.gw || b.ogw - a.ogw,
-  );
-  return rows;
+  const omwById = new Map(rows.map((r) => [r.id, r.omw]));
+  rows.forEach((r) => {
+    if (r.opponents.length === 0) return;
+    r.oomw =
+      r.opponents.reduce((sum, o) => sum + (omwById.get(o.id) ?? MIN_PCT), 0) /
+      r.opponents.length;
+  });
+
+  return orderStandings(rows, mode, manualOrder);
+}
+
+/**
+ * The values a format ranks on, most significant first. Two players level on
+ * every one of them are tied as far as their results can show.
+ *
+ * A league is a full round-robin, so everyone faces the same field and
+ * opponent strength carries no signal — it never reads OMW%/OGW%.
+ */
+function tiebreakKey(row: StandingRow, mode: StandingsMode): number[] {
+  if (mode === 'league') return [row.points, row.gameDiff, row.gw];
+  if (mode === 'swiss-bo1') return [row.points, row.omw, row.oomw];
+  return [row.points, row.omw, row.gw, row.ogw];
+}
+
+/** Tiebreak percentages are averages of averages, and summing the same
+ *  opponents in a different order can leave two equal values a few ulps apart
+ *  (0.75 + 0.5 + 0.5 + 1/3 vs 1/3 + 0.75 + 0.5 + 0.5). Comparing at this
+ *  precision keeps that noise from deciding a place, far below any real gap. */
+const TIEBREAK_SCALE = 1e9;
+
+function compareKeys(a: number[], b: number[]): number {
+  for (let i = 0; i < a.length; i++) {
+    const x = Math.round(a[i] * TIEBREAK_SCALE);
+    const y = Math.round(b[i] * TIEBREAK_SCALE);
+    if (y !== x) return y - x;
+  }
+  return 0;
+}
+
+/**
+ * Match points a player took from the others they are tied with and from
+ * nobody else — the "mini-league" a sports table falls back on.
+ *
+ * A completed round-robin has every tied pair meeting exactly once, so this
+ * usually settles it. Two cases it cannot settle, both left to the organizer:
+ * a cycle (A beat B beat C beat A) scores everyone equally, and a tie that
+ * shows up mid-league between players who have yet to be paired.
+ */
+function headToHeadPoints(row: StandingRow, group: Set<string>): number {
+  return row.opponents.reduce((sum, o) => {
+    if (!group.has(o.id)) return sum;
+    if (o.result === 'W') return sum + MATCH_POINTS.win;
+    if (o.result === 'D') return sum + MATCH_POINTS.draw;
+    return sum;
+  }, 0);
+}
+
+/**
+ * Orders the table and stamps each row's place.
+ *
+ * Head-to-head is applied as a mini-league within each tied group rather than
+ * as a pairwise comparison inside the sort: a cycle makes pairwise
+ * head-to-head intransitive, and an intransitive comparator gives
+ * `Array.prototype.sort` licence to return anything at all.
+ *
+ * `manualOrder` only ever separates players a tiebreak already failed to, so
+ * it cannot lift anyone above someone they actually finished behind.
+ */
+function orderStandings(
+  rows: StandingRow[],
+  mode: StandingsMode,
+  manualOrder: string[],
+): StandingRow[] {
+  const manualIndex = new Map(manualOrder.map((id, i) => [id, i]));
+  const h2h = new Map<string, number>();
+
+  rows.sort((a, b) => compareKeys(tiebreakKey(a, mode), tiebreakKey(b, mode)));
+
+  // Resolve each run of rows that the format's own tiebreaks left level.
+  const ordered: StandingRow[] = [];
+  for (let i = 0; i < rows.length;) {
+    const key = tiebreakKey(rows[i], mode);
+    let j = i + 1;
+    while (
+      j < rows.length &&
+      compareKeys(tiebreakKey(rows[j], mode), key) === 0
+    ) {
+      j++;
+    }
+    const group = rows.slice(i, j);
+    if (group.length > 1) {
+      const ids = new Set(group.map((r) => r.id));
+      group.forEach((r) => h2h.set(r.id, headToHeadPoints(r, ids)));
+      group.sort((a, b) => {
+        const byHeadToHead = h2h.get(b.id)! - h2h.get(a.id)!;
+        if (byHeadToHead !== 0) return byHeadToHead;
+        const ma = manualIndex.get(a.id);
+        const mb = manualIndex.get(b.id);
+        // Only an ordering that covers both players says anything about which
+        // of the two comes first.
+        if (ma !== undefined && mb !== undefined) return ma - mb;
+        return 0;
+      });
+    }
+    ordered.push(...group);
+    i = j;
+  }
+
+  // Standard competition ranking over what nothing could separate.
+  const level = (a: StandingRow, b: StandingRow): boolean =>
+    compareKeys(tiebreakKey(a, mode), tiebreakKey(b, mode)) === 0 &&
+    (h2h.get(a.id) ?? 0) === (h2h.get(b.id) ?? 0);
+
+  let tieGroup = 0;
+  for (let i = 0; i < ordered.length;) {
+    let j = i + 1;
+    while (j < ordered.length && level(ordered[i], ordered[j])) j++;
+    const place = ordered.slice(i, j);
+    const tied = place.length > 1;
+    const settledByOrganizer =
+      tied && place.every((r) => manualIndex.has(r.id));
+    place.forEach((r, k) => {
+      // An organizer who ordered the whole group has decided the places, so
+      // they stop sharing one and the table stops asking for a tiebreak.
+      r.rank = settledByOrganizer ? i + k + 1 : i + 1;
+      r.tiebreakNeeded = tied && !settledByOrganizer;
+      r.manuallyOrdered = settledByOrganizer;
+      r.tieGroup = tied ? tieGroup : null;
+    });
+    if (tied) tieGroup++;
+    i = j;
+  }
+
+  return ordered;
 }
 
 // ===================== Swiss pairing =====================
@@ -328,13 +544,14 @@ function generateSwissPairings(
   players: Player[],
   matches: SwissMatch[],
   roundNumber: number,
+  mode: StandingsMode = 'swiss',
 ): SwissPairingResult {
   const active = players.filter((p) => !p.dropped);
   let order: Player[];
   if (roundNumber === 1) {
     order = shuffle(active);
   } else {
-    const standings = computeStandings(active, matches);
+    const standings = computeStandings(active, matches, mode);
     order = standings.map((s) => active.find((p) => p.id === s.id)!);
   }
 
@@ -442,11 +659,14 @@ function applyGameWin(
  * whole schedule already exists as rows; for Swiss it only ever touches the
  * current round's pending match, since later rounds aren't generated yet
  * (the pairer already excludes dropped players from those).
+ *
+ * `winGames` is the forfeit's game score: 2 for Best of 3, 1 for Best of 1.
  */
 function dropPlayer(
   players: Player[],
   matches: SwissMatch[],
   playerId: string,
+  winGames = 2,
 ): { players: Player[]; matches: SwissMatch[] } {
   const nextPlayers = players.map((p) =>
     p.id === playerId ? { ...p, dropped: true } : p,
@@ -459,8 +679,8 @@ function dropPlayer(
     return {
       ...m,
       result: winner,
-      p1Games: winner === 'p1' ? 2 : 0,
-      p2Games: winner === 'p2' ? 2 : 0,
+      p1Games: winner === 'p1' ? winGames : 0,
+      p2Games: winner === 'p2' ? winGames : 0,
       forfeited: true,
     };
   });
@@ -811,6 +1031,7 @@ function reportDoubleEliminationResult(
 
 export {
   computeStandings,
+  swissStandingsMode,
   generateSwissPairings,
   generateRoundRobinSchedule,
   applyGameWin,

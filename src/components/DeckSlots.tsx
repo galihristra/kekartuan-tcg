@@ -30,8 +30,8 @@ export default function DeckSlots({
             className="tk-deck-sprite"
             src={pokemonSpriteUrl(entry)}
             alt=""
-            width={32}
-            height={32}
+            width={48}
+            height={48}
           />
           <span>{entry.name.toLowerCase()}</span>
           <button
