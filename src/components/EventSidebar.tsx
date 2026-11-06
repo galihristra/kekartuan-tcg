@@ -32,6 +32,10 @@ interface EventSidebarProps {
   onEditDeck: (id: string) => void;
   eventActive: boolean;
   rosterLocked: boolean;
+  /** Players added now join the running Swiss event from its next round. */
+  lateEntryOpen: boolean;
+  canAddPlayers: boolean;
+  removablePlayerIds: Set<string>;
   mode: Mode;
   modeLocked: boolean;
   onModeChange: (mode: Mode) => void;
@@ -41,6 +45,7 @@ interface EventSidebarProps {
   roundsInput: string;
   onRoundsInputChange: (value: string) => void;
   roundsValid: boolean;
+  minRounds: number;
   recommendedRounds: number;
   round: number;
   eventFinished: boolean;
@@ -71,6 +76,9 @@ export default function EventSidebar({
   onEditDeck,
   eventActive,
   rosterLocked,
+  lateEntryOpen,
+  canAddPlayers,
+  removablePlayerIds,
   mode,
   modeLocked,
   onModeChange,
@@ -80,6 +88,7 @@ export default function EventSidebar({
   roundsInput,
   onRoundsInputChange,
   roundsValid,
+  minRounds,
   recommendedRounds,
   round,
   eventFinished,
@@ -263,6 +272,14 @@ export default function EventSidebar({
                 onChange={(e) => onRenamePlayer(p.id, e.target.value)}
               />
               {p.dropped && <span className="tk-hint">(dropped)</span>}
+              {p.joinedRound != null && !p.dropped && (
+                <span
+                  className="tk-hint tk-late-tag"
+                  title={`Joined late: starts in round ${p.joinedRound}`}
+                >
+                  joined R{p.joinedRound}
+                </span>
+              )}
               {isAdmin && (
                 <button
                   className="tk-btn ghost tk-btn--sm"
@@ -271,41 +288,51 @@ export default function EventSidebar({
                   Deck
                 </button>
               )}
-              {isAdmin && !rosterLocked && (
+              {isAdmin && removablePlayerIds.has(p.id) && (
                 <button className="tk-x" onClick={() => onRemovePlayer(p.id)}>
                   ×
                 </button>
               )}
-              {isAdmin && rosterLocked && !p.dropped && !eventFinished && (
-                <button
-                  className="tk-btn ghost tk-btn--sm"
-                  onClick={() => onDropPlayer(p.id)}
-                >
-                  Drop
-                </button>
-              )}
+              {isAdmin &&
+                rosterLocked &&
+                !removablePlayerIds.has(p.id) &&
+                !p.dropped &&
+                !eventFinished && (
+                  <button
+                    className="tk-btn ghost tk-btn--sm"
+                    onClick={() => onDropPlayer(p.id)}
+                  >
+                    Drop
+                  </button>
+                )}
             </div>
           );
         })}
         {isAdmin && (
           <div className="tk-add">
             <input
-              placeholder="Add player…"
+              placeholder={lateEntryOpen ? 'Add late player…' : 'Add player…'}
               value={newName}
-              disabled={rosterLocked}
+              disabled={!canAddPlayers}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             />
             <button
               className="tk-btn"
-              disabled={rosterLocked}
+              disabled={!canAddPlayers}
               onClick={handleAdd}
             >
               Add
             </button>
           </div>
         )}
-        {isAdmin && rosterLocked && (
+        {isAdmin && lateEntryOpen && (
+          <p className="tk-suggest">
+            Late players join from round {round + 1}. Each round they missed
+            counts as a loss.
+          </p>
+        )}
+        {isAdmin && rosterLocked && !lateEntryOpen && !eventFinished && (
           <p className="tk-suggest">
             Roster is locked while the event is running.
           </p>
@@ -321,13 +348,19 @@ export default function EventSidebar({
             <input
               id="tk-round-count"
               type="number"
-              min={3}
+              min={minRounds}
               value={roundsInput}
-              disabled={!isAdmin || round > 0 || eventFinished}
+              disabled={!isAdmin || eventFinished}
               onChange={(e) => onRoundsInputChange(e.target.value)}
             />
             <span className="tk-hint">
-              {roundsValid ? `suggested ${recommendedRounds}` : 'min 3 rounds'}
+              {!roundsValid
+                ? `min ${minRounds} rounds`
+                : round === 0
+                  ? `suggested ${recommendedRounds}`
+                  : isAdmin
+                    ? 'can still add rounds'
+                    : ''}
             </span>
           </div>
         )}

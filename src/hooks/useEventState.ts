@@ -223,8 +223,32 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
         ? Math.max(...matches.map((m) => m.round))
         : 0
       : parseInt(roundsInput, 10);
-  const roundsValid = mode === 'league' ? players.length >= 2 : roundCount >= 3;
+  // Mid-event the round count can still move, but never below the rounds
+  // already paired.
+  const minRounds = Math.max(3, round);
+  const roundsValid =
+    mode === 'league' ? players.length >= 2 : roundCount >= minRounds;
   const rosterLocked = round > 0;
+  // A Swiss event keeps taking players after round 1: each round is paired
+  // from the standings as it starts, so a newcomer simply joins the next one.
+  // A league can't, because its whole schedule was generated up front.
+  const lateEntryOpen = mode === 'swiss' && round > 0 && !eventFinished;
+  const canAddPlayers = !rosterLocked || lateEntryOpen;
+  // Removing someone who has played would rewrite their opponents' results,
+  // so once the event runs only a late entry who hasn't been paired yet can be
+  // taken back out (a typo, someone who changed their mind). Everyone else
+  // drops instead.
+  const removablePlayerIds = useMemo(() => {
+    if (!rosterLocked) return new Set(players.map((p) => p.id));
+    const paired = new Set(
+      matches.flatMap((m) => (m.p2Id ? [m.p1Id, m.p2Id] : [m.p1Id])),
+    );
+    return new Set(
+      players
+        .filter((p) => p.joinedRound != null && !paired.has(p.id))
+        .map((p) => p.id),
+    );
+  }, [players, matches, rosterLocked]);
   // Changing format mid-event would reinterpret an existing schedule under
   // different rules, so it's only editable while the event is still empty.
   const modeLocked = players.length > 0 || matches.length > 0 || round > 0;
@@ -242,14 +266,23 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
 
   const addPlayer = (name: string) => {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed || !canAddPlayers) return;
     setPlayers((ps) => [
       ...ps,
-      { id: newPlayerId(), name: trimmed, seed: ps.length + 1 },
+      {
+        id: newPlayerId(),
+        name: trimmed,
+        seed: ps.length + 1,
+        // Whether the current round is still being played or already done,
+        // its pairings are fixed, so a late entry starts with the next one.
+        ...(round > 0 && { joinedRound: round + 1 }),
+      },
     ]);
   };
-  const removePlayer = (id: string) =>
+  const removePlayer = (id: string) => {
+    if (!removablePlayerIds.has(id)) return;
     setPlayers((ps) => ps.filter((p) => p.id !== id));
+  };
   const renamePlayer = (id: string, name: string) =>
     setPlayers((ps) => ps.map((p) => (p.id === id ? { ...p, name } : p)));
   const setPlayerDeck = (
@@ -509,6 +542,9 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     setPlayerDeck,
     dropPlayer,
     rosterLocked,
+    lateEntryOpen,
+    canAddPlayers,
+    removablePlayerIds,
     playerMap,
 
     // mode + rounds
@@ -523,6 +559,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     setRoundsInput,
     roundCount,
     roundsValid,
+    minRounds,
     recommendedRounds,
 
     // swiss

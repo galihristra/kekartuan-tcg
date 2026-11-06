@@ -56,7 +56,7 @@ export default function PlayerResultDetails({
             return (
               <li
                 className={`tk-perf-round tk-perf-round--${e.result}`}
-                key={`${e.round}-${e.opponentId ?? 'bye'}`}
+                key={`${e.round}-${e.opponentId ?? (e.late ? 'late' : 'bye')}`}
               >
                 <span className="tk-perf-round-num">{e.round}</span>
                 <span className="tk-perf-round-opp">
@@ -64,7 +64,9 @@ export default function PlayerResultDetails({
                     <DeckSprites player={opp} size="xs" />
                     {e.opponentId
                       ? (opp?.name ?? 'Unknown')
-                      : 'Bye (no opponent)'}
+                      : e.late
+                        ? 'Joined late'
+                        : 'Bye (no opponent)'}
                   </span>
                   {showOpponentTiebreaks && e.mw !== null && e.gw !== null ? (
                     <span className="tk-perf-round-tb">

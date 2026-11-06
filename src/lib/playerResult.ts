@@ -1,6 +1,7 @@
 import type { StandingRow, StandingsMode } from '../engine/tournament';
 
-/** One played round, either against an opponent or a bye. */
+/** One round of a player's event: against an opponent, a bye, or a round
+ *  they missed by joining late. */
 export interface RoundEntry {
   round: number;
   opponentId: string | null;
@@ -12,6 +13,8 @@ export interface RoundEntry {
   forfeited?: boolean;
   /** A loss the opponent took too, from a match that ran out of time. */
   doubleLoss?: boolean;
+  /** A round played before this player joined, scored as a loss. */
+  late?: boolean;
   mw: number | null;
   gw: number | null;
 }
@@ -25,7 +28,10 @@ export const RESULT_LABEL = { W: 'Win', D: 'Draw', L: 'Loss' } as const;
 
 /** How a round's result reads in words, telling a double loss apart from a
  *  loss the opponent won. */
-export function resultLabel(entry: Pick<RoundEntry, 'result' | 'doubleLoss'>) {
+export function resultLabel(
+  entry: Pick<RoundEntry, 'result' | 'doubleLoss' | 'late'>,
+) {
+  if (entry.late) return 'Loss (joined late)';
   return entry.doubleLoss ? 'Double loss' : RESULT_LABEL[entry.result];
 }
 
@@ -45,9 +51,9 @@ export function ordinal(n: number): string {
   return `${n}${ORDINAL_SUFFIX[n % 10] ?? 'th'}`;
 }
 
-/** Opponents and byes are tracked separately on a `StandingRow` (byes have no
- *  opponent and are excluded from the tiebreaker averages), so merge them back
- *  into one round-ordered history. */
+/** Opponents, byes and late rounds are tracked separately on a `StandingRow`
+ *  (byes and late rounds have no opponent and are excluded from the
+ *  tiebreaker averages), so merge them back into one round-ordered history. */
 export function roundHistory(row: StandingRow): RoundEntry[] {
   return [
     ...row.opponents.map((o) => ({
@@ -67,6 +73,16 @@ export function roundHistory(row: StandingRow): RoundEntry[] {
       result: 'W' as const,
       gamesFor: null,
       gamesAgainst: null,
+      mw: null,
+      gw: null,
+    })),
+    ...row.lateRounds.map((round) => ({
+      round,
+      opponentId: null,
+      result: 'L' as const,
+      gamesFor: null,
+      gamesAgainst: null,
+      late: true,
       mw: null,
       gw: null,
     })),

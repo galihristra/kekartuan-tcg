@@ -10,6 +10,11 @@ export interface Player {
   /** Set when this player was admitted from a self-registration; makes
    *  admitting the same registration twice a no-op. */
   registrationId?: string;
+  /** The first Swiss round this player can be paired in. Set only for a
+   *  player added after the event started; every round before it counts as a
+   *  "late" match loss (no points, but counted towards MW%), the way an
+   *  official event treats a late entry. */
+  joinedRound?: number;
 }
 
 /** `draw` and `double_loss` are what a match that runs out of time can end
@@ -74,6 +79,9 @@ export interface StandingRow {
   opponents: OpponentBreakdown[];
   /** Rounds the player sat out with a bye (counted as a win, no opponent). */
   byeRounds: number[];
+  /** Rounds played before this player joined, each scored as a match loss
+   *  with no opponent and no games. */
+  lateRounds: number[];
   /** Placing under standard competition ranking: players nothing separates
    *  share the higher place and the places they fill are skipped, so a tie for
    *  1st reads 1, 1, 3 — the way a sports table does it. */
@@ -192,6 +200,7 @@ interface PlayerStat {
   gamesPlayed: number;
   opponents: Omit<OpponentBreakdown, 'mw' | 'gw'>[];
   byeRounds: number[];
+  lateRounds: number[];
 }
 
 /** Which tiebreakers an event ranks on. `swiss` is Best of 3; `swiss-bo1`
@@ -232,7 +241,18 @@ function computeStandings(
       gamesPlayed: 0,
       opponents: [],
       byeRounds: [],
+      lateRounds: [],
     };
+    // A late entry's missed rounds are losses: no points, but they still count
+    // as matches, so a late 2-0 reads as the 2-1 it ranks alongside rather
+    // than a perfect record. No games are added, so GW% and the game
+    // difference only ever reflect games actually played.
+    for (let r = 1; r < (p.joinedRound ?? 1); r++) {
+      const s = stats[p.id];
+      s.matchesPlayed += 1;
+      s.losses += 1;
+      s.lateRounds.push(r);
+    }
   });
 
   matches.forEach((m) => {
@@ -355,6 +375,7 @@ function computeStandings(
         gw: gw(o.id),
       })),
       byeRounds: s.byeRounds,
+      lateRounds: s.lateRounds,
       // Stamped by `orderStandings` once every row exists to compare against.
       rank: 0,
       tiebreakNeeded: false,
@@ -546,7 +567,11 @@ function generateSwissPairings(
   roundNumber: number,
   mode: StandingsMode = 'swiss',
 ): SwissPairingResult {
-  const active = players.filter((p) => !p.dropped);
+  // A player added mid-round joins from the next one, so they can't be in
+  // this round's pool yet.
+  const active = players.filter(
+    (p) => !p.dropped && (p.joinedRound ?? 1) <= roundNumber,
+  );
   let order: Player[];
   if (roundNumber === 1) {
     order = shuffle(active);
@@ -558,13 +583,21 @@ function generateSwissPairings(
   const pool = [...order];
   let byePlayer: Player | null = null;
   if (pool.length % 2 === 1) {
-    for (let i = pool.length - 1; i >= 0; i--) {
-      if (!hadBye(matches, pool[i].id)) {
-        byePlayer = pool.splice(i, 1)[0];
-        break;
+    // The bye goes to the lowest-ranked player who hasn't had one — but not
+    // to someone who has only just arrived. A late entry sits at the bottom of
+    // the table, so without this they'd turn up and be told to sit out.
+    const justJoined = (p: Player) => (p.joinedRound ?? 1) === roundNumber;
+    const pick = (ok: (p: Player) => boolean) => {
+      for (let i = pool.length - 1; i >= 0; i--) {
+        if (ok(pool[i])) return pool.splice(i, 1)[0];
       }
-    }
-    if (!byePlayer) byePlayer = pool.pop() ?? null;
+      return null;
+    };
+    byePlayer =
+      pick((p) => !hadBye(matches, p.id) && !justJoined(p)) ??
+      pick((p) => !hadBye(matches, p.id)) ??
+      pool.pop() ??
+      null;
   }
 
   const found = pairWithoutRematches(pool, matches, { steps: 200_000 });

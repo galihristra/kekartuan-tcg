@@ -959,3 +959,140 @@ describe('matchesThroughRound', () => {
     expect(withPoints.length).toBeLessThanOrEqual(1);
   });
 });
+
+describe('Late entries', () => {
+  /** Plays one Bo1 round from the pairer, p1 always winning. */
+  function playRound(
+    players: Player[],
+    matches: SwissMatch[],
+    round: number,
+  ): { pairedIds: string[]; byePlayerId: string | null } {
+    const { pairings, byePlayerId } = generateSwissPairings(
+      players,
+      matches,
+      round,
+      'swiss-bo1',
+    );
+    pairings.forEach(({ p1Id, p2Id }) =>
+      matches.push({
+        p1Id,
+        p2Id,
+        round,
+        result: 'p1',
+        p1Games: 1,
+        p2Games: 0,
+      }),
+    );
+    if (byePlayerId) matches.push({ isBye: true, p1Id: byePlayerId, round });
+    return {
+      pairedIds: pairings.flatMap((p) => [p.p1Id, p.p2Id]),
+      byePlayerId,
+    };
+  }
+
+  it('scores each missed round as a loss that counts towards MW%', () => {
+    const late: Player = { id: 'late', name: 'Late', joinedRound: 3 };
+    const players = [...makePlayers(1), late];
+    const matches: SwissMatch[] = [
+      {
+        p1Id: 'late',
+        p2Id: 'p1',
+        round: 3,
+        result: 'p1',
+        p1Games: 1,
+        p2Games: 0,
+      },
+    ];
+    const row = computeStandings(players, matches, 'swiss-bo1').find(
+      (r) => r.id === 'late',
+    )!;
+    expect(row.points).toBe(3);
+    expect([row.wins, row.draws, row.losses]).toEqual([1, 0, 2]);
+    expect(row.matchesPlayed).toBe(3);
+    expect(row.mw).toBeCloseTo(1 / 3, 10);
+    expect(row.lateRounds).toEqual([1, 2]);
+    // The missed rounds have no opponent and no games behind them.
+    expect(row.opponents).toHaveLength(1);
+    expect(row.gw).toBe(1);
+  });
+
+  it('ranks a late 2-0 alongside an on-time 2-1, not above them', () => {
+    const late: Player = { id: 'late', name: 'Late', joinedRound: 2 };
+    const ontime = { id: 'ontime', name: 'On time' };
+    const win = (p1Id: string, p2Id: string, round: number): SwissMatch => ({
+      p1Id,
+      p2Id,
+      round,
+      result: 'p1',
+      p1Games: 1,
+      p2Games: 0,
+    });
+    const rows = computeStandings(
+      [late, ontime, ...makePlayers(4)],
+      [
+        win('p1', 'ontime', 1),
+        win('p2', 'p3', 1),
+        win('late', 'p4', 2),
+        win('ontime', 'p3', 2),
+        win('late', 'p2', 3),
+        win('ontime', 'p4', 3),
+      ],
+      'swiss-bo1',
+    );
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+    expect(byId.late.points).toBe(byId.ontime.points);
+    expect(byId.late.mw).toBeCloseTo(byId.ontime.mw, 10);
+  });
+
+  it('leaves a player added mid-round out until their first round', () => {
+    const players = makePlayers(4);
+    const matches: SwissMatch[] = [];
+    playRound(players, matches, 1);
+    players.push({ id: 'late', name: 'Late', joinedRound: 3 });
+    const { pairedIds, byePlayerId } = playRound(players, matches, 2);
+    expect(pairedIds).not.toContain('late');
+    expect(byePlayerId).toBeNull();
+    const third = playRound(players, matches, 3);
+    expect([...third.pairedIds, third.byePlayerId]).toContain('late');
+  });
+
+  it('never hands the bye to a player in their first round', () => {
+    // Repeated because round 1 pairs at random.
+    for (let trial = 0; trial < 50; trial++) {
+      const players = makePlayers(4);
+      const matches: SwissMatch[] = [];
+      playRound(players, matches, 1);
+      players.push({ id: 'late', name: 'Late', joinedRound: 2 });
+      const { byePlayerId, pairedIds } = playRound(players, matches, 2);
+      expect(byePlayerId).not.toBeNull();
+      expect(byePlayerId).not.toBe('late');
+      expect(pairedIds).toContain('late');
+    }
+  });
+
+  it('still gives a late entry the bye when nobody else can take it', () => {
+    const players: Player[] = [{ id: 'late', name: 'Late', joinedRound: 1 }];
+    expect(generateSwissPairings(players, [], 1).byePlayerId).toBe('late');
+  });
+
+  it('pairs late entries without rematches across the rest of the event', () => {
+    for (let trial = 0; trial < 50; trial++) {
+      const players = makePlayers(7);
+      const matches: SwissMatch[] = [];
+      playRound(players, matches, 1);
+      players.push({ id: 'l1', name: 'Late 1', joinedRound: 2 });
+      playRound(players, matches, 2);
+      players.push({ id: 'l2', name: 'Late 2', joinedRound: 3 });
+      playRound(players, matches, 3);
+      playRound(players, matches, 4);
+      const seen = new Set<string>();
+      matches
+        .filter((m) => !m.isBye)
+        .forEach((m) => {
+          const key = [m.p1Id, m.p2Id].sort().join('-');
+          expect(seen.has(key)).toBe(false);
+          seen.add(key);
+        });
+    }
+  });
+});

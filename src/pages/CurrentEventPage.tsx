@@ -160,6 +160,9 @@ export default function CurrentEventPage({
           onAddPlayer={ev.addPlayer}
           onEditDeck={setEditingDeckPlayerId}
           rosterLocked={ev.rosterLocked}
+          lateEntryOpen={ev.lateEntryOpen}
+          canAddPlayers={ev.canAddPlayers}
+          removablePlayerIds={ev.removablePlayerIds}
           mode={ev.mode}
           modeLocked={ev.modeLocked}
           onModeChange={ev.setMode}
@@ -169,6 +172,7 @@ export default function CurrentEventPage({
           roundsInput={ev.roundsInput}
           onRoundsInputChange={ev.setRoundsInput}
           roundsValid={ev.roundsValid}
+          minRounds={ev.minRounds}
           recommendedRounds={ev.recommendedRounds}
           round={ev.round}
           eventFinished={ev.eventFinished}
