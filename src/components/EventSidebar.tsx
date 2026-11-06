@@ -110,6 +110,13 @@ export default function EventSidebar({
     setNewName('');
   };
 
+  // Once the event runs, the suggestion no longer applies, but the organizer
+  // can still raise the count for players who joined late.
+  let roundsHint = '';
+  if (!roundsValid) roundsHint = `min ${minRounds} rounds`;
+  else if (round === 0) roundsHint = `suggested ${recommendedRounds}`;
+  else if (isAdmin) roundsHint = 'can still add rounds';
+
   const admittedIds = useMemo(
     () =>
       new Set(
@@ -272,7 +279,7 @@ export default function EventSidebar({
                 onChange={(e) => onRenamePlayer(p.id, e.target.value)}
               />
               {p.dropped && <span className="tk-hint">(dropped)</span>}
-              {p.joinedRound != null && !p.dropped && (
+              {p.joinedRound !== undefined && !p.dropped && (
                 <span
                   className="tk-hint tk-late-tag"
                   title={`Joined late: starts in round ${p.joinedRound}`}
@@ -353,15 +360,7 @@ export default function EventSidebar({
               disabled={!isAdmin || eventFinished}
               onChange={(e) => onRoundsInputChange(e.target.value)}
             />
-            <span className="tk-hint">
-              {!roundsValid
-                ? `min ${minRounds} rounds`
-                : round === 0
-                  ? `suggested ${recommendedRounds}`
-                  : isAdmin
-                    ? 'can still add rounds'
-                    : ''}
-            </span>
+            <span className="tk-hint">{roundsHint}</span>
           </div>
         )}
         {/* An event that never started has nothing worth archiving, so it's

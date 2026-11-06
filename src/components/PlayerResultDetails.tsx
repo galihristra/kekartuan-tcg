@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Player, StandingRow, StandingsMode } from '../engine/tournament';
 import { resultLabel, resultStats, roundHistory } from '../lib/playerResult';
+import type { RoundEntry } from '../lib/playerResult';
 import DeckSprites from './DeckSprites';
 
 interface PlayerResultDetailsProps {
@@ -12,6 +13,13 @@ interface PlayerResultDetailsProps {
    *  empty; the modal puts the stat glossary and the admin "Edit deck" button
    *  here. */
   afterStats?: ReactNode;
+}
+
+/** Who a round was played against, or why there was nobody. */
+function opponentLabel(e: RoundEntry, opp: Player | undefined): string {
+  if (e.opponentId) return opp?.name ?? 'Unknown';
+  if (e.late) return 'Joined late';
+  return 'Bye (no opponent)';
 }
 
 /** The stats grid and the round-by-round list, shared by the modal body and the
@@ -56,17 +64,15 @@ export default function PlayerResultDetails({
             return (
               <li
                 className={`tk-perf-round tk-perf-round--${e.result}`}
-                key={`${e.round}-${e.opponentId ?? (e.late ? 'late' : 'bye')}`}
+                // A player has exactly one entry per round: a match, a bye,
+                // or a round missed by joining late.
+                key={e.round}
               >
                 <span className="tk-perf-round-num">{e.round}</span>
                 <span className="tk-perf-round-opp">
                   <span className="tk-perf-round-name">
                     <DeckSprites player={opp} size="xs" />
-                    {e.opponentId
-                      ? (opp?.name ?? 'Unknown')
-                      : e.late
-                        ? 'Joined late'
-                        : 'Bye (no opponent)'}
+                    {opponentLabel(e, opp)}
                   </span>
                   {showOpponentTiebreaks && e.mw !== null && e.gw !== null ? (
                     <span className="tk-perf-round-tb">

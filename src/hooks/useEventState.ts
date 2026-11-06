@@ -245,7 +245,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     );
     return new Set(
       players
-        .filter((p) => p.joinedRound != null && !paired.has(p.id))
+        .filter((p) => p.joinedRound !== undefined && !paired.has(p.id))
         .map((p) => p.id),
     );
   }, [players, matches, rosterLocked]);
