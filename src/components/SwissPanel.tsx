@@ -146,6 +146,10 @@ export default function SwissPanel({
               return (
                 <span className="tk-hint">Report all results to continue</span>
               );
+            // The round count stays editable mid-event, so it can be blank or
+            // too low for a moment; don't offer Finish on a half-typed number.
+            if (!roundsValid)
+              return <span className="tk-hint">Set the number of rounds</span>;
             if (round < roundCount) {
               if (!isAdmin)
                 return (

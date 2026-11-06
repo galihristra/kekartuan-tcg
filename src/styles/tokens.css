@@ -286,6 +286,15 @@ html[data-theme='light'] .tk-root {
   font-size: 14px;
   padding: 2px 0;
 }
+/* The "joined R3" label on a late entry. It must keep its width and stay on
+   one line, so the name field is what ellipsizes on a narrow phone. */
+.tk-late-tag {
+  flex: none;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--gold-dim);
+}
 .tk-roster-row input:focus {
   outline: none;
   border-bottom: 1px solid var(--gold);

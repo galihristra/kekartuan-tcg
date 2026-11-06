@@ -42,6 +42,7 @@ function row(overrides: Partial<StandingRow> = {}): StandingRow {
     gameDiff: 3,
     opponents: [],
     byeRounds: [],
+    lateRounds: [],
     rank: 1,
     tiebreakNeeded: false,
     manuallyOrdered: false,
@@ -79,6 +80,22 @@ describe('roundHistory', () => {
 
     expect(played.result).toBe('L');
     expect(played.forfeited).toBe(true);
+  });
+});
+
+describe('roundHistory late entries', () => {
+  it('lists the rounds a late player missed as losses with no opponent', () => {
+    const rounds = roundHistory(
+      row({ opponents: [opponent(3)], lateRounds: [1, 2] }),
+    );
+    expect(rounds.map((e) => [e.round, e.result, !!e.late])).toEqual([
+      [1, 'L', true],
+      [2, 'L', true],
+      [3, 'W', false],
+    ]);
+    expect(rounds[0].opponentId).toBeNull();
+    expect(rounds[0].gamesFor).toBeNull();
+    expect(resultLabel(rounds[0])).toBe('Loss (joined late)');
   });
 });
 
