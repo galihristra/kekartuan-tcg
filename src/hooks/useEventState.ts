@@ -493,7 +493,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
   /** Drops the organizer's ordering, putting every tie back to shared places. */
   const clearStandingsOrder = () => setStandingsOrder([]);
 
-  // Generating the bracket is what starts a single-elim event, so it moves the
+  // Generating the bracket is what starts an elimination event, so it moves the
   // round pointer off 0 the way Swiss round 1 does. That locks the roster and
   // closes self-registration (here and in the `public_register` RLS policy),
   // since nobody can be added to a bracket that's already drawn.
@@ -501,17 +501,25 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     setSingleBracket(createSingleEliminationBracket(players));
     setRound(1);
   };
-  const genDouble = () =>
+  const genDouble = () => {
     setDoubleBracket(createDoubleEliminationBracket(players));
+    setRound(1);
+  };
 
+  // The engine updates a bracket in place, so report on a copy: state needs a
+  // new object to re-render, and an updater must not mutate what it's given.
   const reportSingle = useCallback((matchId: string, winnerId: string) => {
     setSingleBracket((b) =>
-      b ? reportSingleEliminationResult(b, matchId, winnerId) : b,
+      b
+        ? reportSingleEliminationResult(structuredClone(b), matchId, winnerId)
+        : b,
     );
   }, []);
   const reportDouble = useCallback((matchId: string, winnerId: string) => {
     setDoubleBracket((b) =>
-      b ? reportDoubleEliminationResult(b, matchId, winnerId) : b,
+      b
+        ? reportDoubleEliminationResult(structuredClone(b), matchId, winnerId)
+        : b,
     );
   }, []);
 

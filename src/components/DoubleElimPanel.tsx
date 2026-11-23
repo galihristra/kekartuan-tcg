@@ -1,43 +1,23 @@
-import type { Player, DoubleEliminationBracket } from '../engine/tournament';
-import { singleRoundLabels } from '../lib/bracketLabels';
-import BracketView from './BracketView';
+import {
+  doubleEliminationChampion,
+  type DoubleEliminationBracket,
+  type Player,
+} from '../engine/tournament';
 import { nameOf } from '../lib/bracketHelpers';
-
-const SLOTS = ['p1Id', 'p2Id'] as const;
-
-interface BracketSlotProps {
-  pid: string | null;
-  isWinner: boolean;
-  canClick: boolean;
-  playerMap: Record<string, Player>;
-  onClick: () => void;
-}
-
-function BracketSlot({
-  pid,
-  isWinner,
-  canClick,
-  playerMap,
-  onClick,
-}: BracketSlotProps) {
-  return (
-    <div
-      className={`tk-bslot ${isWinner ? 'winner' : ''} ${!pid ? 'empty' : ''}`}
-      onClick={() => canClick && onClick()}
-    >
-      <span>{nameOf(playerMap, pid)}</span>
-      {isWinner && <span className="tk-bwin">W</span>}
-    </div>
-  );
-}
+import DoubleBracketView from './DoubleBracketView';
 
 interface DoubleElimPanelProps {
   isAdmin: boolean;
   playersCount: number;
   playerMap: Record<string, Player>;
   bracket: DoubleEliminationBracket | null;
+  eventFinished: boolean;
   onGenerate: () => void;
   onReport: (matchId: string, winnerId: string) => void;
+  /** Marks the event complete once the grand final (or its reset) is in. */
+  onFinishEvent: () => void;
+  /** Archives the finished event and leaves for the dashboard. */
+  onNewEvent: () => void;
 }
 
 export default function DoubleElimPanel({
@@ -45,8 +25,11 @@ export default function DoubleElimPanel({
   playersCount,
   playerMap,
   bracket,
+  eventFinished,
   onGenerate,
   onReport,
+  onFinishEvent,
+  onNewEvent,
 }: DoubleElimPanelProps) {
   if (!bracket) {
     return (
@@ -62,7 +45,9 @@ export default function DoubleElimPanel({
             </button>
             <div className="tk-empty tk-empty--spaced">
               Lose in the winners' bracket and you drop to the losers' bracket.
-              Lose twice and you're out.
+              Lose twice and you're out. Seeded by roster order above (player 1
+              = top seed). Generating the bracket locks the roster and closes
+              registration.
             </div>
           </>
         ) : (
@@ -74,105 +59,58 @@ export default function DoubleElimPanel({
     );
   }
 
+  // Null until the grand final is in, and again while a bracket reset it
+  // forced is still to be played.
+  const championId = doubleEliminationChampion(bracket);
+
   return (
     <div className="tk-panel">
-      {isAdmin && (
-        <button className="tk-btn ghost tk-reseed" onClick={onGenerate}>
-          Re-seed &amp; restart
-        </button>
+      <div className="tk-roundbar">
+        <div className="tk-roundlabel">
+          {eventFinished
+            ? 'Event complete'
+            : championId
+              ? 'Final decided'
+              : bracket.grandFinalReset.active
+                ? 'Bracket reset to play'
+                : 'Bracket in progress'}
+        </div>
+        <div className="tk-roundbar-actions">
+          {eventFinished
+            ? isAdmin && (
+                <button className="tk-btn ghost" onClick={onNewEvent}>
+                  Finish Event
+                </button>
+              )
+            : championId &&
+              (isAdmin ? (
+                <button className="tk-btn" onClick={onFinishEvent}>
+                  Finish event
+                </button>
+              ) : (
+                <span className="tk-hint">
+                  Waiting for organizer to finish the event
+                </span>
+              ))}
+          {isAdmin && !eventFinished && (
+            <button className="tk-btn ghost" onClick={onGenerate}>
+              Re-seed &amp; restart
+            </button>
+          )}
+        </div>
+      </div>
+      {championId && (
+        <div className="tk-champion">
+          🏆 <b className="tk-gold">{nameOf(playerMap, championId)}</b> wins the
+          event
+        </div>
       )}
-      <h3 className="tk-section-title">Winners' Bracket</h3>
-      <BracketView
-        rounds={bracket.wbRounds}
-        roundLabels={singleRoundLabels(bracket.wbRounds.length)}
+      <DoubleBracketView
+        bracket={bracket}
         playerMap={playerMap}
         onReport={onReport}
-        readOnly={!isAdmin}
+        readOnly={!isAdmin || eventFinished}
       />
-
-      <h3 className="tk-section-title">Losers' Bracket</h3>
-      <div className="tk-lbwrap">
-        {bracket.lbRounds.map((lbRound, ri) => (
-          <div className="tk-lbcol" key={ri}>
-            <div className="tk-bcol-label">LB {ri + 1}</div>
-            {lbRound.matches.map((m) => (
-              <div className="tk-bmatch tk-bmatch--static" key={m.id}>
-                {SLOTS.map((slot) => {
-                  const pid = m[slot];
-                  const isWinner = !!m.winnerId && m.winnerId === pid;
-                  const canClick =
-                    isAdmin && !!(pid && m.p1Id && m.p2Id && !m.winnerId);
-                  return (
-                    <BracketSlot
-                      key={slot}
-                      pid={pid}
-                      isWinner={isWinner}
-                      canClick={canClick}
-                      playerMap={playerMap}
-                      onClick={() => pid && onReport(m.id, pid)}
-                    />
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      <h3 className="tk-section-title">Grand Final</h3>
-      <div className="tk-gf">
-        <div className="tk-bmatch">
-          {SLOTS.map((slot) => {
-            const pid = bracket.grandFinal[slot];
-            const isWinner = bracket.grandFinal.winnerId === pid;
-            const canClick =
-              isAdmin &&
-              !!(
-                pid &&
-                bracket.grandFinal.p1Id &&
-                bracket.grandFinal.p2Id &&
-                !bracket.grandFinal.winnerId
-              );
-            return (
-              <BracketSlot
-                key={slot}
-                pid={pid}
-                isWinner={isWinner}
-                canClick={canClick}
-                playerMap={playerMap}
-                onClick={() => pid && onReport('GF', pid)}
-              />
-            );
-          })}
-        </div>
-        {bracket.grandFinalReset.active && (
-          <div className="tk-bmatch">
-            <div className="tk-reset-label">BRACKET RESET</div>
-            {SLOTS.map((slot) => {
-              const pid = bracket.grandFinalReset[slot];
-              const isWinner = bracket.grandFinalReset.winnerId === pid;
-              const canClick =
-                isAdmin &&
-                !!(
-                  pid &&
-                  bracket.grandFinalReset.p1Id &&
-                  bracket.grandFinalReset.p2Id &&
-                  !bracket.grandFinalReset.winnerId
-                );
-              return (
-                <BracketSlot
-                  key={slot}
-                  pid={pid}
-                  isWinner={isWinner}
-                  canClick={canClick}
-                  playerMap={playerMap}
-                  onClick={() => pid && onReport('GF2', pid)}
-                />
-              );
-            })}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

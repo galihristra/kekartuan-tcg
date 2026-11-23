@@ -94,10 +94,12 @@ TODO / follow-ups for Phase 2:
 - [x] **Archive view for single elimination.** Archived single-elim events show
       the champion, placings by elimination round, and the final bracket instead
       of Swiss standings.
-- [ ] **Double elimination before re-enabling it.** Its propagation auto-advances
-      any match with one empty slot, so one reported result can send players
-      straight to the grand final (single elim had the same bug, now fixed).
-      It also needs the archive view and a finish flow, as single elim got.
+- [x] **Double elimination re-enabled.** Advancement now only awards a match
+      unplayed when its empty slot can never be filled (a round-1 bye, or the
+      losers'-bracket slot such a bye feeds), not when its feeder simply hasn't
+      been reported. Tests report results one at a time and check nothing
+      advances early. It got the same finish flow and archive view (champion,
+      placings, final bracket) as single elim.
 - [ ] Consider formalizing "an event has one chosen format" instead of the
       free tab-switch, so archives are unambiguous.
 - [ ] Last-write-wins only; no multi-device conflict handling (fine for a

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   computeStandings,
+  doubleEliminationChampion,
+  doubleEliminationPlacings,
   matchesThroughRound,
   singleEliminationChampion,
   singleEliminationPlacings,
@@ -16,6 +18,7 @@ import {
 import type { ArchivedEventSummary } from '../lib/eventStore';
 import StandingsTable from './StandingsTable';
 import BracketView from './BracketView';
+import DoubleBracketView from './DoubleBracketView';
 import ElimPlacingsTable from './ElimPlacingsTable';
 import EventPhotos from './EventPhotos';
 import EventLocation from './EventLocation';
@@ -143,12 +146,42 @@ export default function ArchivedEventDetail({
   const playerMap = Object.fromEntries(
     event.state.players.map((p) => [p.id, p]),
   );
-  // A single-elim event's result is its bracket: it never records Swiss
+  // An elimination event's result is its bracket: it never records Swiss
   // matches, so the standings above would show every player on 0 points.
-  const bracket =
+  const single =
     event.state.mode === 'single' ? event.state.singleBracket : null;
-  const championNames = bracket
-    ? nameOf(playerMap, singleEliminationChampion(bracket))
+  const double =
+    event.state.mode === 'double' ? event.state.doubleBracket : null;
+  const elim = single
+    ? {
+        championId: singleEliminationChampion(single),
+        placings: singleEliminationPlacings(single),
+        bracket: (
+          <BracketView
+            rounds={single.rounds}
+            roundLabels={singleRoundLabels(single.totalRounds)}
+            playerMap={playerMap}
+            onReport={() => {}}
+            readOnly
+          />
+        ),
+      }
+    : double
+      ? {
+          championId: doubleEliminationChampion(double),
+          placings: doubleEliminationPlacings(double),
+          bracket: (
+            <DoubleBracketView
+              bracket={double}
+              playerMap={playerMap}
+              onReport={() => {}}
+              readOnly
+            />
+          ),
+        }
+      : null;
+  const championNames = elim
+    ? nameOf(playerMap, elim.championId)
     : standings
         .filter((r) => r.rank === 1)
         .map((r) => r.name)
@@ -202,7 +235,7 @@ export default function ArchivedEventDetail({
           <p className="tk-eventdescription-readonly">{event.description}</p>
         )
       )}
-      {bracket ? (
+      {elim ? (
         <>
           <h3 className="tk-section-title">
             {event.state.eventFinished
@@ -210,7 +243,7 @@ export default function ArchivedEventDetail({
               : 'Placings at cancellation'}
           </h3>
           <ElimPlacingsTable
-            placings={singleEliminationPlacings(bracket)}
+            placings={elim.placings}
             playerMap={playerMap}
             onEditDeck={isAdmin ? setEditingDeckPlayerId : undefined}
           />
@@ -219,13 +252,7 @@ export default function ArchivedEventDetail({
               ? 'Final Bracket'
               : 'Bracket at cancellation'}
           </h3>
-          <BracketView
-            rounds={bracket.rounds}
-            roundLabels={singleRoundLabels(bracket.totalRounds)}
-            playerMap={playerMap}
-            onReport={() => {}}
-            readOnly
-          />
+          {elim.bracket}
         </>
       ) : (
         <>

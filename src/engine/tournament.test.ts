@@ -12,6 +12,8 @@ import {
   singleEliminationPlacings,
   createDoubleEliminationBracket,
   reportDoubleEliminationResult,
+  doubleEliminationChampion,
+  doubleEliminationPlacings,
 } from './tournament';
 import type { Player, SwissMatch } from './tournament';
 
@@ -483,6 +485,229 @@ describe('Double elimination', () => {
       expect(seatedCount).toBe(n);
     },
   );
+});
+
+describe('Double elimination advancement', () => {
+  type DEBracket = ReturnType<typeof createDoubleEliminationBracket>;
+
+  function allMatches(b: DEBracket) {
+    return [
+      ...b.wbRounds.flat(),
+      ...b.lbRounds.flatMap((r) => r.matches),
+      b.grandFinal,
+      ...(b.grandFinalReset.active ? [b.grandFinalReset] : []),
+    ];
+  }
+  const byId = (b: DEBracket, id: string) =>
+    allMatches(b).find((m) => m.id === id)!;
+  const playable = (b: DEBracket) =>
+    allMatches(b).filter((m) => !m.winnerId && m.p1Id && m.p2Id);
+
+  /**
+   * Reports one playable match at a time, in random order, until the bracket
+   * is done. After every report, a match nobody reported may only have a
+   * winner if it has a single player; and once the bracket is finished, that
+   * empty slot must still be empty, i.e. it was a real bye rather than a
+   * feeder that hadn't been played yet.
+   */
+  function playOneAtATime(n: number, pick: (ms: { id: string }[]) => number) {
+    const players = makePlayers(n);
+    let bracket = createDoubleEliminationBracket(players);
+    const reported = new Set<string>();
+    const walkovers = new Set<string>();
+
+    const checkNothingAdvancedEarly = () => {
+      for (const m of allMatches(bracket)) {
+        if (!m.winnerId || reported.has(m.id)) continue;
+        expect(
+          [m.p1Id, m.p2Id].filter(Boolean),
+          `${m.id} was decided without being reported`,
+        ).toEqual([m.winnerId]);
+        walkovers.add(m.id);
+      }
+    };
+
+    checkNothingAdvancedEarly();
+    for (let safety = 0; safety < 200; safety++) {
+      const ms = playable(bracket);
+      if (ms.length === 0) break;
+      const m = ms[pick(ms)];
+      const winner = Math.random() < 0.5 ? m.p1Id! : m.p2Id!;
+      reported.add(m.id);
+      bracket = reportDoubleEliminationResult(bracket, m.id, winner);
+      checkNothingAdvancedEarly();
+    }
+
+    for (const id of walkovers) {
+      const m = byId(bracket, id);
+      expect(
+        [m.p1Id, m.p2Id].filter(Boolean),
+        `${id} turned out not to be a bye`,
+      ).toHaveLength(1);
+    }
+    return { players, bracket, walkovers };
+  }
+
+  it('reproduction: one WB round-1 result decides nothing else (n=4)', () => {
+    let bracket = createDoubleEliminationBracket(makePlayers(4));
+    const first = bracket.wbRounds[0][0];
+    expect([first.p1Id, first.p2Id]).toEqual(['p1', 'p4']);
+    bracket = reportDoubleEliminationResult(bracket, first.id, 'p1');
+
+    const wbFinal = bracket.wbRounds[1][0];
+    expect([wbFinal.p1Id, wbFinal.p2Id, wbFinal.winnerId]).toEqual([
+      'p1',
+      null,
+      null,
+    ]);
+    for (const m of bracket.lbRounds.flatMap((r) => r.matches))
+      expect(m.winnerId).toBeNull();
+    expect(bracket.grandFinal).toMatchObject({
+      p1Id: null,
+      p2Id: null,
+      winnerId: null,
+    });
+    expect(doubleEliminationChampion(bracket)).toBeNull();
+  });
+
+  const orders: [string, (ms: { id: string }[]) => number][] = [
+    ['first playable', () => 0],
+    ['last playable', (ms) => ms.length - 1],
+    ['random', (ms) => Math.floor(Math.random() * ms.length)],
+  ];
+
+  describe.each([3, 4, 5, 6, 8, 16])('n=%i', (n) => {
+    it.each(orders)(
+      'never advances a match early, reporting %s first',
+      (_, pick) => {
+        for (let rep = 0; rep < 20; rep++) {
+          const { players, bracket, walkovers } = playOneAtATime(n, pick);
+          // Byes only exist when the field isn't a power of two.
+          if ((n & (n - 1)) === 0) expect(walkovers.size).toBe(0);
+          else expect(walkovers.size).toBeGreaterThan(0);
+          const champion = doubleEliminationChampion(bracket);
+          expect(players.map((p) => p.id)).toContain(champion);
+          expect(playable(bracket)).toHaveLength(0);
+        }
+      },
+    );
+  });
+
+  it('passes round-1 byes through only where nobody can ever arrive (n=6)', () => {
+    const bracket = createDoubleEliminationBracket(makePlayers(6));
+    // Seeds 1 and 2 have byes; their WB round-1 matches have no loser, so
+    // the LB round-1 slots they feed stay empty for good.
+    const decided = allMatches(bracket)
+      .filter((m) => m.winnerId)
+      .map((m) => [m.id, m.winnerId]);
+    expect(decided).toEqual([
+      ['WB1-1', 'p1'],
+      ['WB1-3', 'p2'],
+    ]);
+    // LB round 1 waits for the WB round-1 losers it is still owed.
+    for (const m of bracket.lbRounds[0].matches) {
+      expect(m.winnerId).toBeNull();
+    }
+  });
+
+  it('sends the WB round-1 loser through an LB bye once it is known (n=6)', () => {
+    let bracket = createDoubleEliminationBracket(makePlayers(6));
+    const wb12 = byId(bracket, 'WB1-2'); // p4 vs p5
+    expect([wb12.p1Id, wb12.p2Id]).toEqual(['p4', 'p5']);
+    bracket = reportDoubleEliminationResult(bracket, 'WB1-2', 'p4');
+    expect(byId(bracket, 'LB1-1')).toMatchObject({
+      p1Id: null,
+      p2Id: 'p5',
+      winnerId: 'p5',
+    });
+    // …but its next match still waits for the WB round-2 loser.
+    expect(byId(bracket, 'LB2-1')).toMatchObject({
+      p1Id: 'p5',
+      p2Id: null,
+      winnerId: null,
+    });
+  });
+
+  /** Plays every match but the grand final, higher seed always winning. */
+  function upToGrandFinal(n: number) {
+    const players = makePlayers(n);
+    const seed = new Map(players.map((p, i) => [p.id, i]));
+    let bracket = createDoubleEliminationBracket(players);
+    for (let safety = 0; safety < 200; safety++) {
+      const m = playable(bracket).find((x) => x.id !== 'GF');
+      if (!m) break;
+      bracket = reportDoubleEliminationResult(
+        bracket,
+        m.id,
+        seed.get(m.p1Id!)! < seed.get(m.p2Id!)! ? m.p1Id! : m.p2Id!,
+      );
+    }
+    return bracket;
+  }
+
+  it('crowns the WB champion straight away if they win the grand final', () => {
+    let bracket = upToGrandFinal(4);
+    expect(bracket.grandFinal).toMatchObject({ p1Id: 'p1', p2Id: 'p2' });
+    expect(doubleEliminationChampion(bracket)).toBeNull();
+    bracket = reportDoubleEliminationResult(bracket, 'GF', 'p1');
+    expect(bracket.grandFinalReset.active).toBe(false);
+    expect(doubleEliminationChampion(bracket)).toBe('p1');
+  });
+
+  it('plays a bracket reset when the LB champion wins the grand final', () => {
+    let bracket = upToGrandFinal(8);
+    expect(bracket.grandFinal).toMatchObject({ p1Id: 'p1', p2Id: 'p2' });
+    bracket = reportDoubleEliminationResult(bracket, 'GF', 'p2');
+    expect(bracket.grandFinalReset).toMatchObject({
+      active: true,
+      p1Id: 'p1',
+      p2Id: 'p2',
+      winnerId: null,
+    });
+    // Nobody is champion until the reset is played.
+    expect(doubleEliminationChampion(bracket)).toBeNull();
+    expect(
+      doubleEliminationPlacings(bracket).filter((p) =>
+        ['p1', 'p2'].includes(p.playerId),
+      ),
+    ).toEqual([
+      { playerId: 'p1', place: null },
+      { playerId: 'p2', place: null },
+    ]);
+
+    bracket = reportDoubleEliminationResult(bracket, 'GF2', 'p1');
+    expect(doubleEliminationChampion(bracket)).toBe('p1');
+    expect(doubleEliminationPlacings(bracket).slice(0, 2)).toEqual([
+      { playerId: 'p1', place: 1 },
+      { playerId: 'p2', place: 2 },
+    ]);
+  });
+
+  it.each([
+    [4, [1, 2, 3, 4]],
+    [6, [1, 2, 3, 4, 5, 5]],
+    [8, [1, 2, 3, 4, 5, 5, 7, 7]],
+  ])('places every player of a finished n=%i bracket', (n, expected) => {
+    let bracket = upToGrandFinal(n);
+    bracket = reportDoubleEliminationResult(bracket, 'GF', 'p1');
+    const placings = doubleEliminationPlacings(bracket);
+    expect(placings.map((p) => p.place)).toEqual(expected);
+    expect(placings.map((p) => p.playerId).sort()).toEqual(
+      makePlayers(n)
+        .map((p) => p.id)
+        .sort(),
+    );
+  });
+
+  it('leaves players still alive unplaced, without changing the bracket', () => {
+    let bracket = createDoubleEliminationBracket(makePlayers(4));
+    bracket = reportDoubleEliminationResult(bracket, 'WB1-1', 'p1');
+    const before = JSON.stringify(bracket);
+    expect(
+      doubleEliminationPlacings(bracket).every((p) => p.place === null),
+    ).toBe(true);
+    expect(JSON.stringify(bracket)).toBe(before);
+  });
 });
 
 describe('Round-robin schedule', () => {
