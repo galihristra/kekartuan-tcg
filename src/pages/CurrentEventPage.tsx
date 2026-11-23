@@ -240,8 +240,11 @@ export default function CurrentEventPage({
               playersCount={ev.players.length}
               playerMap={ev.playerMap}
               bracket={ev.singleBracket}
+              eventFinished={ev.eventFinished}
               onGenerate={ev.genSingle}
               onReport={ev.reportSingle}
+              onFinishEvent={ev.finishEvent}
+              onNewEvent={archiveAndLeave}
             />
           )}
 

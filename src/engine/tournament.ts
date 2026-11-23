@@ -806,7 +806,11 @@ function createSingleEliminationBracket(
 
 function propagateSingleElim(bracket: SingleEliminationBracket): void {
   for (let r = 0; r < bracket.rounds.length; r++) {
-    bracket.rounds[r].forEach((m) => maybeAutoAdvance(m));
+    // Byes only exist in round 1: the field is padded to a power of two there,
+    // and every round-1 match has at least one real player. An empty slot in a
+    // later round just means its feeder match hasn't been played yet, so
+    // auto-advancing there would hand the other player a free win.
+    if (r === 0) bracket.rounds[r].forEach((m) => maybeAutoAdvance(m));
     if (r < bracket.rounds.length - 1) {
       bracket.rounds[r].forEach((m, i) => {
         if (m.winnerId) {
@@ -816,6 +820,51 @@ function propagateSingleElim(bracket: SingleEliminationBracket): void {
       });
     }
   }
+}
+
+/** The bracket's winner, once the final has been decided. */
+function singleEliminationChampion(
+  bracket: SingleEliminationBracket,
+): string | null {
+  const final = bracket.rounds[bracket.rounds.length - 1]?.[0];
+  return final?.winnerId ?? null;
+}
+
+export interface ElimPlacing {
+  playerId: string;
+  /** 1 for the champion, 2 for the runner-up, then shared places by the round
+   *  a player went out in (both semifinal losers are 3rd, quarterfinal losers
+   *  5th, …). `null` while the player is still alive in an unfinished bracket. */
+  place: number | null;
+}
+
+/** Final placings read straight off the bracket: an elimination event has no
+ *  match points, so how far a player got is their result. */
+function singleEliminationPlacings(
+  bracket: SingleEliminationBracket,
+): ElimPlacing[] {
+  const R = bracket.totalRounds;
+  const placeOf = new Map<string, number | null>();
+  for (const round of bracket.rounds) {
+    for (const m of round) {
+      for (const id of [m.p1Id, m.p2Id]) {
+        if (id && !placeOf.has(id)) placeOf.set(id, null);
+      }
+      if (m.winnerId && m.p1Id && m.p2Id) {
+        const loser = m.winnerId === m.p1Id ? m.p2Id : m.p1Id;
+        placeOf.set(loser, Math.pow(2, R - m.round) + 1);
+      }
+    }
+  }
+  const champion = singleEliminationChampion(bracket);
+  if (champion) placeOf.set(champion, 1);
+  return [...placeOf]
+    .map(([playerId, place]) => ({ playerId, place }))
+    .sort(
+      (a, b) =>
+        (a.place ?? Number.POSITIVE_INFINITY) -
+        (b.place ?? Number.POSITIVE_INFINITY),
+    );
 }
 
 function reportSingleEliminationResult(
@@ -1073,6 +1122,8 @@ export {
   generateSeedOrder,
   createSingleEliminationBracket,
   reportSingleEliminationResult,
+  singleEliminationChampion,
+  singleEliminationPlacings,
   createDoubleEliminationBracket,
   reportDoubleEliminationResult,
 };
