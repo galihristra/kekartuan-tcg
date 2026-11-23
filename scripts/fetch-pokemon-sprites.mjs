@@ -17,16 +17,16 @@
 // also contains non-official Create-A-Pokémon (CAP) fan content mixed in at
 // similar ids, which this hand-picked list deliberately excludes.
 //
-// One entry (Mega Zygarde, id 10301) has no sprite published in PokeAPI/sprites
-// yet, so it gets a generated placeholder image instead — swap it for the
-// real sprite once art is available by removing its id from
-// MEGA_PLACEHOLDER_IDS and re-running this script.
+// One entry (Mega Zygarde, id 10301) has no default sprite in PokeAPI/sprites
+// yet, so its committed image was made by hand from PokeAPI's HOME render
+// (sprites/pokemon/other/home/10301.png, trimmed and scaled to 96x96). This
+// script leaves that file alone — once a default sprite is published, remove
+// its id from HAND_MADE_SPRITE_IDS and re-run to switch to it.
 //
 // Re-run this script only if the dataset needs regenerating; its output
 // (public/pokemon-sprites/, src/data/pokemon.json) is committed to the repo.
 
 import { execFileSync } from 'node:child_process';
-import { deflateSync } from 'node:zlib';
 import {
   existsSync,
   mkdtempSync,
@@ -152,9 +152,9 @@ const MEGA_FORMS = [
   { id: '10326', name: 'Mega Meowstic (F)' },
 ];
 
-// Ids with no sprite published in PokeAPI/sprites yet — these get a
-// generated placeholder image instead of a clone-copied one.
-const MEGA_PLACEHOLDER_IDS = new Set(['10301']);
+// Ids with no default sprite in PokeAPI/sprites yet. Their image in
+// public/pokemon-sprites/ is committed by hand, so it's kept, not overwritten.
+const HAND_MADE_SPRITE_IDS = new Set(['10301']);
 
 function cloneSprites() {
   const cloneDir = mkdtempSync(join(tmpdir(), 'pokeapi-sprites-'));
@@ -186,84 +186,6 @@ function cloneSprites() {
   return cloneDir;
 }
 
-// Minimal pure-Node PNG encoder for the placeholder image — draws a flat
-// gray square with a darker "?" glyph so it reads clearly as "no art yet"
-// rather than a broken image icon.
-function buildPlaceholderPng(size = 96) {
-  const bg = [200, 200, 200, 255];
-  const fg = [140, 140, 140, 255];
-  const glyph = [
-    '0011110',
-    '0110110',
-    '1100011',
-    '0000110',
-    '0001100',
-    '0001000',
-    '0000000',
-    '0001000',
-  ];
-  const gh = glyph.length;
-  const gw = glyph[0].length;
-  const scale = Math.floor(size / 12);
-  const ox = Math.floor((size - gw * scale) / 2);
-  const oy = Math.floor((size - gh * scale) / 2);
-
-  const raw = Buffer.alloc(size * (1 + size * 4));
-  let o = 0;
-  for (let y = 0; y < size; y++) {
-    raw[o++] = 0; // filter type: none
-    for (let x = 0; x < size; x++) {
-      const gx = Math.floor((x - ox) / scale);
-      const gy = Math.floor((y - oy) / scale);
-      const isGlyph =
-        gy >= 0 && gy < gh && gx >= 0 && gx < gw && glyph[gy][gx] === '1';
-      const [r, g, b, a] = isGlyph ? fg : bg;
-      raw[o++] = r;
-      raw[o++] = g;
-      raw[o++] = b;
-      raw[o++] = a;
-    }
-  }
-
-  const crcTable = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    crcTable[n] = c >>> 0;
-  }
-  const crc32 = (buf) => {
-    let c = 0xffffffff;
-    for (let i = 0; i < buf.length; i++)
-      c = crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-    return (c ^ 0xffffffff) >>> 0;
-  };
-  const chunk = (tag, data) => {
-    const tagBuf = Buffer.from(tag, 'ascii');
-    const lenBuf = Buffer.alloc(4);
-    lenBuf.writeUInt32BE(data.length, 0);
-    const crcBuf = Buffer.alloc(4);
-    crcBuf.writeUInt32BE(crc32(Buffer.concat([tagBuf, data])), 0);
-    return Buffer.concat([lenBuf, tagBuf, data, crcBuf]);
-  };
-
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // color type: RGBA
-  ihdr[10] = 0;
-  ihdr[11] = 0;
-  ihdr[12] = 0;
-
-  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  return Buffer.concat([
-    sig,
-    chunk('IHDR', ihdr),
-    chunk('IDAT', deflateSync(raw)),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-
 function copySprites(cloneDir) {
   mkdirSync(spritesOutDir, { recursive: true });
   const srcDir = join(cloneDir, 'sprites', 'pokemon');
@@ -280,9 +202,10 @@ function copySprites(cloneDir) {
 
   for (const { id, name } of MEGA_FORMS) {
     const dest = join(spritesOutDir, `${id}.png`);
-    if (MEGA_PLACEHOLDER_IDS.has(id)) {
-      writeFileSync(dest, buildPlaceholderPng());
-      copied++;
+    if (HAND_MADE_SPRITE_IDS.has(id)) {
+      if (!existsSync(dest)) {
+        throw new Error(`Missing hand-made sprite for ${name} at ${dest}`);
+      }
       continue;
     }
     const src = join(srcDir, `${id}.png`);
