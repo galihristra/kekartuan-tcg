@@ -1001,87 +1001,165 @@ function createDoubleEliminationBracket(
     grandFinal,
     grandFinalReset,
   };
-  propagateDoubleElim(bracket);
+  settleDoubleElim(bracket);
   return bracket;
 }
 
-function propagateDoubleElim(bracket: DoubleEliminationBracket): void {
-  const { wbRounds, lbRounds, grandFinal, grandFinalReset } = bracket;
+/** Where a double-elim slot gets its player from. */
+type DESource =
+  | { kind: 'fixed' }
+  | { kind: 'none' }
+  | { kind: 'winner'; of: AdvanceableMatch }
+  | { kind: 'loser'; of: AdvanceableMatch };
 
-  const wbLosersByRound: (string | null | undefined)[][] = [];
-  for (let r = 0; r < wbRounds.length; r++) {
-    wbRounds[r].forEach((m) => maybeAutoAdvance(m));
-    if (r < wbRounds.length - 1) {
-      wbRounds[r].forEach((m, i) => {
-        if (m.winnerId) {
-          const nm = wbRounds[r + 1][Math.floor(i / 2)];
-          nm[i % 2 === 0 ? 'p1Id' : 'p2Id'] = m.winnerId;
-        }
-      });
-    }
-    wbLosersByRound.push(
-      wbRounds[r].map((m) => {
-        if (!m.winnerId) return undefined;
-        if (!m.p1Id || !m.p2Id) return null;
-        return m.winnerId === m.p1Id ? m.p2Id : m.p1Id;
+interface DEWire {
+  match: AdvanceableMatch & { id: string };
+  sources: [DESource, DESource];
+  /** Index into `lbRounds`, for losers'-bracket matches. */
+  lbRound?: number;
+}
+
+/** What a match will hand on to the slots it feeds: a player id once known,
+ *  `undefined` while it's still pending, or `null` if it can never produce
+ *  one (a bye has no loser; a match with two empty slots has no winner). */
+type DEFeed = string | null | undefined;
+
+/**
+ * Every match in the bracket with the sources of its two slots, in an order
+ * where each match comes after every match that feeds it. Mirrors the layout
+ * built by `createDoubleEliminationBracket`.
+ */
+function doubleElimWiring(bracket: DoubleEliminationBracket): {
+  wires: DEWire[];
+  lbChampion: DESource;
+} {
+  const { wbRounds, lbRounds } = bracket;
+  const wires: DEWire[] = [];
+  const winnerOf = (m: AdvanceableMatch | undefined): DESource =>
+    m ? { kind: 'winner', of: m } : { kind: 'none' };
+  const loserOf = (m: AdvanceableMatch | undefined): DESource =>
+    m ? { kind: 'loser', of: m } : { kind: 'none' };
+
+  wbRounds.forEach((round, r) =>
+    round.forEach((m, i) =>
+      wires.push({
+        match: m,
+        sources:
+          r === 0
+            ? [{ kind: 'fixed' }, { kind: 'fixed' }]
+            : [
+                winnerOf(wbRounds[r - 1][2 * i]),
+                winnerOf(wbRounds[r - 1][2 * i + 1]),
+              ],
       }),
-    );
-  }
+    ),
+  );
 
-  let holding: (string | null)[] | null = null;
+  let holding: DESource[] | null = null;
   let lbIdx = 0;
+  const addLbRound = (sourcesOf: (i: number) => [DESource, DESource]) => {
+    const idx = lbIdx++;
+    const matches = lbRounds[idx].matches;
+    matches.forEach((m, i) =>
+      wires.push({ match: m, sources: sourcesOf(i), lbRound: idx }),
+    );
+    return matches.map((m) => winnerOf(m));
+  };
   for (let k = 1; k <= wbRounds.length; k++) {
-    const Lk = wbLosersByRound[k - 1];
+    const wbLosers = wbRounds[k - 1];
     if (holding === null) {
-      const round = lbRounds[lbIdx];
-      lbIdx++;
-      round.matches.forEach((m, i) => {
-        const a = Lk[2 * i],
-          b = Lk[2 * i + 1];
-        if (a !== undefined) m.p1Id = a;
-        if (b !== undefined) m.p2Id = b;
-        maybeAutoAdvance(m);
-      });
-      holding = round.matches.map((m) => m.winnerId || null);
+      // First losers' round: round-1 losers play each other.
+      holding = addLbRound((i) => [
+        loserOf(wbLosers[2 * i]),
+        loserOf(wbLosers[2 * i + 1]),
+      ]);
     } else {
-      const round = lbRounds[lbIdx];
-      lbIdx++;
-      round.matches.forEach((m, i) => {
-        const a = holding![i],
-          b = Lk[i];
-        if (a !== undefined && a !== null) m.p1Id = a;
-        if (b !== undefined) m.p2Id = b;
-        maybeAutoAdvance(m);
-      });
-      const winners = round.matches.map((m) => m.winnerId || null);
-      if (k < wbRounds.length) {
-        const round2 = lbRounds[lbIdx];
-        lbIdx++;
-        round2.matches.forEach((m, i) => {
-          const a = winners[2 * i],
-            b = winners[2 * i + 1];
-          if (a) m.p1Id = a;
-          if (b) m.p2Id = b;
-          maybeAutoAdvance(m);
-        });
-        holding = round2.matches.map((m) => m.winnerId || null);
-      } else {
-        holding = winners;
-      }
+      // Major round: losers'-bracket survivors meet this round's WB losers.
+      const held: DESource[] = holding;
+      const winners = addLbRound((i) => [
+        held[i] ?? { kind: 'none' },
+        loserOf(wbLosers[i]),
+      ]);
+      // Minor round: those winners play each other (none after the WB final).
+      holding =
+        k < wbRounds.length
+          ? addLbRound((i) => [
+              winners[2 * i] ?? { kind: 'none' },
+              winners[2 * i + 1] ?? { kind: 'none' },
+            ])
+          : winners;
     }
   }
+  return { wires, lbChampion: holding?.[0] ?? { kind: 'none' } };
+}
 
-  const wbChampion = wbRounds[wbRounds.length - 1][0]?.winnerId || null;
-  const lbChampion = holding ? holding[0] : null;
-  if (wbChampion) grandFinal.p1Id = wbChampion;
-  if (lbChampion) grandFinal.p2Id = lbChampion;
-  maybeAutoAdvance(grandFinal);
+/**
+ * Fills every slot from its feeder and returns what each match hands on.
+ * A match is only awarded without being played when one slot has a player
+ * and the other can never get one — never because the feeder of that slot
+ * simply hasn't been reported yet.
+ */
+function settleDoubleElim(bracket: DoubleEliminationBracket): {
+  wires: DEWire[];
+  outcome: Map<AdvanceableMatch, { winner: DEFeed; loser: DEFeed }>;
+} {
+  const { wbRounds, grandFinal, grandFinalReset } = bracket;
+  const { wires, lbChampion } = doubleElimWiring(bracket);
+  const outcome = new Map<
+    AdvanceableMatch,
+    { winner: DEFeed; loser: DEFeed }
+  >();
+  const feed = (src: DESource, fixed: string | null): DEFeed => {
+    switch (src.kind) {
+      case 'fixed':
+        return fixed;
+      case 'none':
+        return null;
+      case 'winner':
+        return outcome.get(src.of)!.winner;
+      case 'loser':
+        return outcome.get(src.of)!.loser;
+    }
+  };
+  const settle = (m: AdvanceableMatch, a: DEFeed, b: DEFeed) => {
+    m.p1Id = a ?? null;
+    m.p2Id = b ?? null;
+    if (!m.winnerId) {
+      if (a && b === null) m.winnerId = a;
+      else if (b && a === null) m.winnerId = b;
+    }
+    const winner: DEFeed =
+      m.winnerId ?? (a === null && b === null ? null : undefined);
+    const loser: DEFeed = m.winnerId
+      ? a && b
+        ? m.winnerId === a
+          ? b
+          : a
+        : null
+      : a === null || b === null
+        ? null
+        : undefined;
+    outcome.set(m, { winner, loser });
+  };
 
+  for (const { match, sources } of wires) {
+    settle(match, feed(sources[0], match.p1Id), feed(sources[1], match.p2Id));
+  }
+
+  const wbFinal = wbRounds[wbRounds.length - 1]?.[0];
+  settle(
+    grandFinal,
+    wbFinal ? outcome.get(wbFinal)!.winner : null,
+    feed(lbChampion, null),
+  );
+
+  // The losers'-bracket champion forces a decider by beating the WB champion,
+  // who until then hadn't lost.
   if (
     grandFinal.winnerId &&
-    grandFinal.winnerId === grandFinal.p2Id &&
     grandFinal.p1Id &&
-    grandFinal.p1Id !== grandFinal.p2Id
+    grandFinal.p2Id &&
+    grandFinal.winnerId === grandFinal.p2Id
   ) {
     grandFinalReset.active = true;
     grandFinalReset.p1Id = grandFinal.p1Id;
@@ -1092,6 +1170,63 @@ function propagateDoubleElim(bracket: DoubleEliminationBracket): void {
     grandFinalReset.p2Id = null;
     grandFinalReset.winnerId = null;
   }
+  return { wires, outcome };
+}
+
+/** The event's winner: the grand final's, or the reset's once it's needed. */
+function doubleEliminationChampion(
+  bracket: DoubleEliminationBracket,
+): string | null {
+  const final = bracket.grandFinalReset.active
+    ? bracket.grandFinalReset
+    : bracket.grandFinal;
+  return final.winnerId ?? null;
+}
+
+/** Final placings read off the bracket. 1st and 2nd come from the grand final
+ *  (or its reset); everyone else places by the losers'-bracket round they went
+ *  out in, sharing a place with the others knocked out in that round (the LB
+ *  final's loser is 3rd, the LB semifinal's 4th, and so on). */
+function doubleEliminationPlacings(
+  bracket: DoubleEliminationBracket,
+): ElimPlacing[] {
+  // Settle a copy, so reading placings never rewrites the caller's bracket.
+  const copy = structuredClone(bracket);
+  const { wires, outcome } = settleDoubleElim(copy);
+
+  // How many players each losers' round will knock out, byes excluded.
+  const eliminations = copy.lbRounds.map(() => 0);
+  for (const w of wires) {
+    if (w.lbRound !== undefined && outcome.get(w.match)!.loser !== null)
+      eliminations[w.lbRound]++;
+  }
+  const placeAfterLbRound = (idx: number) =>
+    3 + eliminations.slice(idx + 1).reduce((s, n) => s + n, 0);
+
+  const placeOf = new Map<string, number | null>();
+  for (const m of copy.wbRounds[0] ?? [])
+    for (const id of [m.p1Id, m.p2Id]) if (id) placeOf.set(id, null);
+  for (const w of wires) {
+    const loser = outcome.get(w.match)!.loser;
+    if (w.lbRound !== undefined && loser)
+      placeOf.set(loser, placeAfterLbRound(w.lbRound));
+  }
+  const champion = doubleEliminationChampion(copy);
+  if (champion) {
+    const final = copy.grandFinalReset.active
+      ? copy.grandFinalReset
+      : copy.grandFinal;
+    const runnerUp = final.p1Id === champion ? final.p2Id : final.p1Id;
+    placeOf.set(champion, 1);
+    if (runnerUp) placeOf.set(runnerUp, 2);
+  }
+  return [...placeOf]
+    .map(([playerId, place]) => ({ playerId, place }))
+    .sort(
+      (a, b) =>
+        (a.place ?? Number.POSITIVE_INFINITY) -
+        (b.place ?? Number.POSITIVE_INFINITY),
+    );
 }
 
 function reportDoubleEliminationResult(
@@ -1107,7 +1242,7 @@ function reportDoubleEliminationResult(
   ];
   const m = all.find((x) => x.id === matchId);
   if (m) m.winnerId = winnerId;
-  propagateDoubleElim(bracket);
+  settleDoubleElim(bracket);
   return bracket;
 }
 
@@ -1126,4 +1261,6 @@ export {
   singleEliminationPlacings,
   createDoubleEliminationBracket,
   reportDoubleEliminationResult,
+  doubleEliminationChampion,
+  doubleEliminationPlacings,
 };

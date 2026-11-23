@@ -16,7 +16,7 @@ const MODE_OPTIONS: [Mode, string][] = [
   ['swiss', 'Swiss'],
   ['league', 'League'],
   ['single', 'Single Elim'],
-  // ['double', 'Double Elim'],
+  ['double', 'Double Elim'],
 ];
 
 function modeLabel(mode: Mode): string {
@@ -36,7 +36,8 @@ function progressLabel(ev: ArchivedEventSummary): string {
       : modeLabel(mode);
   if (eventFinished) return `${format} · finished`;
   if (round === 0) return `${format} · not started`;
-  if (mode === 'single') return `${format} · bracket in progress`;
+  if (mode === 'single' || mode === 'double')
+    return `${format} · bracket in progress`;
   return `${format} · round ${round}`;
 }
 

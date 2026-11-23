@@ -22,8 +22,12 @@ it.
   - **Single elimination**: a seeded bracket (roster order, byes to the top
     seeds). Generating it locks the roster and closes registration; archived
     events show placings and the final bracket.
-  - Double elimination is implemented in the engine and UI but hidden from the
-    "start an event" form: its bracket advancement is not trustworthy yet.
+  - **Double elimination**: the same seeding, with a losers' bracket (lose
+    twice and you're out) and a grand final that goes to a bracket reset if
+    the losers'-bracket champion wins it. Generating the bracket locks the
+    roster and closes registration; archived events show placings (1st and
+    2nd from the grand final, the rest by the losers' round they went out
+    in) and the final bracket.
 - **Results**: a win, a **draw**, or a **double loss** (for a match that runs
   out of time). Matches score 3 / 1 / 0 points, and a bye counts as a win.
 - **Standings with honest tiebreaks**, which depend on the format:
