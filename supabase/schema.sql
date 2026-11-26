@@ -80,10 +80,133 @@ create trigger events_set_updated_at
   before update on public.events
   for each row execute function public.set_updated_at();
 
--- Row-Level Security — Phase 3: everyone can read, only the signed-in
--- organizer can write. Exactly one Supabase Auth user should ever exist
--- (create it manually in the dashboard and disable public sign-ups), so
--- "authenticated" and "the organizer" are equivalent — no admin table needed.
+-- ============================================================
+-- Roles — who may write
+-- ============================================================
+--
+-- Sign-in is Google (plus the legacy email + password account), and anyone with
+-- a Google account can create a Supabase Auth user. So "authenticated" no longer
+-- means "organizer": write access comes from this table instead. A signed-in
+-- user with no row here is treated exactly like an anonymous visitor.
+--
+--   admin     — everything an organizer can do, plus managing this table
+--   organizer — create, run, edit, archive and delete any event
+--
+-- Keyed by email rather than auth user id so an admin can grant access before
+-- the person has ever signed in. The email is only trusted once Supabase has
+-- confirmed it (Google-verified for Google sign-ins) — see app_role() below.
+create table if not exists public.user_roles (
+  email      text primary key
+             check (email = lower(email) and char_length(email) between 3 and 254),
+  role       text not null check (role in ('admin', 'organizer')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.user_roles enable row level security;
+
+-- The caller's role, or null. security definer so it can read auth.users and
+-- user_roles regardless of the caller's own RLS; the empty search_path stops a
+-- caller from shadowing either table.
+create or replace function public.app_role()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r.role
+  from public.user_roles r
+  join auth.users u on lower(u.email) = r.email
+  where u.id = auth.uid()
+    and u.email_confirmed_at is not null
+$$;
+
+create or replace function public.is_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(public.app_role() in ('admin', 'organizer'), false)
+$$;
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(public.app_role() = 'admin', false)
+$$;
+
+revoke all on function public.app_role() from public;
+revoke all on function public.is_staff() from public;
+revoke all on function public.is_admin() from public;
+grant execute on function public.app_role() to anon, authenticated;
+grant execute on function public.is_staff() to anon, authenticated;
+grant execute on function public.is_admin() to anon, authenticated;
+
+-- Only admins see or change the table. Everyone else learns their own role
+-- through app_role(), which the client calls over RPC.
+drop policy if exists "admin_read" on public.user_roles;
+create policy "admin_read" on public.user_roles
+  for select to authenticated
+  using ((select public.is_admin()));
+
+drop policy if exists "admin_insert" on public.user_roles;
+create policy "admin_insert" on public.user_roles
+  for insert to authenticated
+  with check ((select public.is_admin()));
+
+drop policy if exists "admin_update" on public.user_roles;
+create policy "admin_update" on public.user_roles
+  for update to authenticated
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
+
+drop policy if exists "admin_delete" on public.user_roles;
+create policy "admin_delete" on public.user_roles
+  for delete to authenticated
+  using ((select public.is_admin()));
+
+-- Never let the last admin demote or remove themselves: with no admin left,
+-- nobody can grant access again short of the SQL Editor.
+create or replace function public.user_roles_keep_an_admin()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (select 1 from public.user_roles where role = 'admin') then
+    raise exception 'At least one admin must remain.' using errcode = 'P0001';
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists user_roles_keep_an_admin on public.user_roles;
+create trigger user_roles_keep_an_admin
+  after update or delete on public.user_roles
+  for each statement execute function public.user_roles_keep_an_admin();
+
+-- First run only: promote the existing shared organizer account to admin so
+-- swapping the policies below can't lock it out. Guarded to an empty roles
+-- table and exactly one auth user — i.e. the pre-RBAC setup, before Google
+-- sign-in has let anyone else create an account.
+insert into public.user_roles (email, role)
+select lower(u.email), 'admin'
+from auth.users u
+where u.email is not null
+  and not exists (select 1 from public.user_roles)
+  and (select count(*) from auth.users) = 1
+on conflict (email) do nothing;
+
+-- Row-Level Security: everyone can read, only staff (admin or organizer, see
+-- user_roles above) can write. `(select ...)` makes Postgres evaluate the role
+-- check once per statement rather than once per row.
 alter table public.events enable row level security;
 
 -- Superseded by the read/write split below; drop it if it exists from Phase 2.
@@ -99,20 +222,20 @@ drop policy if exists "admin_insert" on public.events;
 create policy "admin_insert" on public.events
   for insert
   to authenticated
-  with check (true);
+  with check ((select public.is_staff()));
 
 drop policy if exists "admin_update" on public.events;
 create policy "admin_update" on public.events
   for update
   to authenticated
-  using (true)
-  with check (true);
+  using ((select public.is_staff()))
+  with check ((select public.is_staff()));
 
 drop policy if exists "admin_delete" on public.events;
 create policy "admin_delete" on public.events
   for delete
   to authenticated
-  using (true);
+  using ((select public.is_staff()));
 
 create index if not exists events_status_updated_idx
   on public.events (status, updated_at desc);
@@ -137,12 +260,12 @@ create policy "event_photos_public_read" on storage.objects
 drop policy if exists "event_photos_admin_insert" on storage.objects;
 create policy "event_photos_admin_insert" on storage.objects
   for insert to authenticated
-  with check (bucket_id = 'event-photos');
+  with check (bucket_id = 'event-photos' and (select public.is_staff()));
 
 drop policy if exists "event_photos_admin_delete" on storage.objects;
 create policy "event_photos_admin_delete" on storage.objects
   for delete to authenticated
-  using (bucket_id = 'event-photos');
+  using (bucket_id = 'event-photos' and (select public.is_staff()));
 -- No update policy: "replacing" a photo is delete + re-upload under a new path.
 
 create table if not exists public.event_photos (
@@ -162,12 +285,12 @@ create policy "public_read" on public.event_photos
 drop policy if exists "admin_insert" on public.event_photos;
 create policy "admin_insert" on public.event_photos
   for insert to authenticated
-  with check (true);
+  with check ((select public.is_staff()));
 
 drop policy if exists "admin_delete" on public.event_photos;
 create policy "admin_delete" on public.event_photos
   for delete to authenticated
-  using (true);
+  using ((select public.is_staff()));
 
 create index if not exists event_photos_event_id_idx
   on public.event_photos (event_id, created_at);
@@ -248,20 +371,20 @@ create policy "public_register" on public.registrations
   );
 
 -- Note the absence of an anon select policy: participant emails are visible to
--- the organizer only. A participant's own "you're registered" state is tracked
+-- staff only. A participant's own "you're registered" state is tracked
 -- in localStorage instead of being read back from here.
 drop policy if exists "admin_read" on public.registrations;
 create policy "admin_read" on public.registrations
   for select to authenticated
-  using (true);
+  using ((select public.is_staff()));
 
 drop policy if exists "admin_update" on public.registrations;
 create policy "admin_update" on public.registrations
   for update to authenticated
-  using (true)
-  with check (true);
+  using ((select public.is_staff()))
+  with check ((select public.is_staff()));
 
 drop policy if exists "admin_delete" on public.registrations;
 create policy "admin_delete" on public.registrations
   for delete to authenticated
-  using (true);
+  using ((select public.is_staff()));

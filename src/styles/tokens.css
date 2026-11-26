@@ -806,6 +806,54 @@ a.tk-btn {
   gap: 8px;
   margin-top: 4px;
 }
+.tk-btn--block {
+  width: 100%;
+}
+.tk-signin-note {
+  margin: 10px 0 12px;
+}
+.tk-access-modal {
+  width: min(440px, calc(100vw - 32px));
+  box-sizing: border-box;
+}
+.tk-access-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+}
+.tk-access-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tk-access-email {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.tk-access-role {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.tk-access-add {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.tk-access-add .tk-modal-input {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
 .tk-cancel-btn {
   margin-top: 14px;
   background-color: var(--loss) !important;

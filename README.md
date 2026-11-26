@@ -104,25 +104,59 @@ every change.
 Vercel project settings. `vercel.json` rewrites every path to `index.html` so
 client-side routes like `/event/<slug>` load directly.
 
-## Organizer sign-in (Supabase Auth)
+## Organizer sign-in & roles (Supabase Auth)
 
-Everyone can view events; only a signed-in organizer can edit them (start
-events, manage the roster, report results, start rounds, archive or delete
-events, upload photos). There's exactly **one shared admin account**, created
-directly in the Supabase dashboard — there's no self-serve sign-up.
+Everyone can view events. Editing (start events, manage the roster, report
+results, start rounds, archive or delete events, upload photos, admit sign-ups)
+needs a **role**, granted per email in the `public.user_roles` table:
 
-1. In the Supabase dashboard: **Authentication → Users → Add user**. Enter
-   the organizer's email + a password, and check **Auto Confirm User**.
-2. **Authentication → Providers → Email**: turn off **Allow new users to
-   sign up**. This is what makes it a _single_ admin account — no one else
-   can ever create one, regardless of the (public) publishable key being in
-   the browser bundle.
-3. In the app, click **Organizer sign in** (top right) and sign in with that
-   email + password.
+| Role        | Can                                                  |
+| ----------- | ---------------------------------------------------- |
+| `organizer` | create, run, edit, archive and delete **any** event  |
+| `admin`     | everything an organizer can, plus **Manage access**  |
 
-Protection is enforced in Postgres (RLS), not just hidden in the UI — see
-`supabase/schema.sql`. With no event running, participants see "No events
-running right now" and the organizer gets the form to start one.
+Organizers sign in with **Google** (no auth emails are sent, so Supabase's
+free-tier email rate limit doesn't apply). Anyone can sign in, but an account
+whose email isn't in `user_roles` gets exactly what an anonymous visitor gets.
+The legacy shared email + password account still works from the sign-in dialog
+("Use email & password").
+
+Roles are enforced in Postgres (RLS policies calling `public.is_staff()` /
+`public.is_admin()` in `supabase/schema.sql`), not just hidden in the UI. A role
+only counts once Supabase has **confirmed** the account's email — Google
+confirms it for Google sign-ins.
+
+### One-time setup
+
+1. **Google Cloud Console → APIs & Services → Credentials → Create OAuth client
+   ID** (type: Web application). Authorized redirect URI:
+   `https://<project-ref>.supabase.co/auth/v1/callback` (shown on Supabase's
+   Google provider page). Configure the OAuth consent screen if asked.
+2. **Supabase → Authentication → Sign In / Providers → Google**: enable it and
+   paste the client ID and secret.
+3. **Supabase → Authentication → URL Configuration**: set **Site URL** to the
+   production URL and add **Redirect URLs** for every origin the app runs on,
+   e.g. `https://<your-domain>/**` and `http://localhost:5173/**`. Sign-in
+   returns to the page it started from, so the `/**` wildcard matters.
+4. **Sign-ups:** Google sign-in needs new users to be allowed to sign up. Keep
+   **Email → Confirm email** turned **on** — with it off, someone could create
+   an auto-confirmed password account using an organizer's email before that
+   organizer has signed in, and inherit their role.
+5. Run `supabase/schema.sql` in the SQL Editor. On first run it promotes the
+   existing organizer account to `admin` (only if it's the sole auth user), so
+   nobody is locked out when the policies switch over.
+6. Add yourself (and anyone else) by email — from **Manage access** in the app
+   once signed in as an admin, or in the SQL Editor:
+
+   ```sql
+   insert into public.user_roles (email, role)
+   values ('you@gmail.com', 'admin')
+   on conflict (email) do update set role = excluded.role;
+   ```
+
+The last admin can't be removed or demoted (a trigger blocks it). To undo the
+whole change in an emergency, see `supabase/rollback-rbac.sql` and the steps at
+its top.
 
 ## Participant self-registration
 
@@ -191,7 +225,8 @@ src/
   lib/
     supabase.ts                 # Supabase client (reads env vars)
     eventStore.ts               # load / save / archive events, slugs, registrations, photos
-    auth.ts                     # sign in / out, session helpers
+    auth.ts                     # Google / password sign-in, session, current role
+    roles.ts                    # admin-only role grants (Manage access)
     playerResult.ts             # result-modal stats and glossary
     shareImage.ts               # share-sheet / download / copy fallback rules
     registrationAdmission.ts    # pure registration → roster logic

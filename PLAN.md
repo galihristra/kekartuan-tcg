@@ -100,7 +100,7 @@ TODO / follow-ups for Phase 2:
 - [ ] Last-write-wins only; no multi-device conflict handling (fine for a
       single organizer — revisit if Phase 3 adds concurrent editors).
 
-### Phase 3 — Admin auth & view-only participants (current)
+### Phase 3 — Admin auth & view-only participants (done, superseded by roles below)
 
 Right now the running event shares state across every device with no
 distinction between roles — anyone with the URL can report results, start
@@ -124,6 +124,26 @@ rounds, edit the roster, etc. Phase 3 splits this into two layers:
   to everyone; `insert`/`update`/`delete` require `auth.role() =
 'authenticated'`. A determined participant poking the API directly still
   can't write.
+
+### Phase 3b — Roles & Google sign-in (current)
+
+The single shared account doesn't scale past one organizer, and opening sign-up
+would have made every signed-in user an organizer, since RLS only checked
+`authenticated`.
+
+- **Roles:** `admin` and `organizer` only, in `public.user_roles`, keyed by
+  email so access can be granted before someone's first sign-in. Organizers can
+  edit **all** events (no per-event ownership). Admins also manage the list.
+  Players still need no account.
+- **Sign-in:** Google OAuth (sends no auth email). The legacy email + password
+  account stays as a fallback.
+- **Enforcement:** RLS write policies call `is_staff()` / `is_admin()`
+  (security definer, look up the caller's *confirmed* email). Chosen over a
+  custom access-token hook: one fewer dashboard step, and a role change takes
+  effect on the next request instead of the next token refresh.
+- **Lockout guards:** first run of `schema.sql` promotes the sole existing
+  account to admin; a trigger keeps at least one admin; `rollback-rbac.sql`
+  restores the old policies.
 
 ### Phase 4 — Live/shared views — dropped
 

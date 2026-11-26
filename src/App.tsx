@@ -49,7 +49,7 @@ function InstagramIcon() {
 }
 
 export default function App() {
-  const { session, isAdmin } = useAdminSession();
+  const { session, role, roleLoading, canEdit } = useAdminSession();
   const { theme, toggleTheme } = useTheme();
   const { pathname } = useLocation();
 
@@ -97,16 +97,22 @@ export default function App() {
             Past events
           </Link>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
-          <AdminLogin isAdmin={isAdmin} userSession={session} />
+          <AdminLogin
+            userSession={session}
+            role={role}
+            roleLoading={roleLoading}
+          />
         </div>
       </div>
 
+      {/* Pages call it `isAdmin`, but it means "may edit events": organizers
+          and admins alike. Who's admin only matters to Manage access. */}
       <Routes>
-        <Route path="/" element={<EventsDashboardPage isAdmin={isAdmin} />} />
+        <Route path="/" element={<EventsDashboardPage isAdmin={canEdit} />} />
         <Route path="/past-events" element={<PastEventsPage />} />
         <Route
           path="/event/:eventId"
-          element={<EventPage isAdmin={isAdmin} />}
+          element={<EventPage isAdmin={canEdit} />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
