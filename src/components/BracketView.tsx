@@ -1,6 +1,14 @@
-import { useMemo, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import type { Player } from '../engine/tournament';
 import { nameOf, type BracketMatch } from '../lib/bracketHelpers';
+import Modal from './Modal';
+
+/** A winner the organizer has tapped but not yet confirmed. */
+interface PendingResult {
+  matchId: string;
+  winnerId: string;
+  loserId: string;
+}
 
 interface BracketViewProps {
   rounds: BracketMatch[][];
@@ -19,6 +27,13 @@ export default function BracketView({
   onReport,
   readOnly,
 }: BracketViewProps) {
+  const [pending, setPending] = useState<PendingResult | null>(null);
+  const closeConfirm = () => setPending(null);
+  const confirmResult = () => {
+    if (pending) onReport(pending.matchId, pending.winnerId);
+    setPending(null);
+  };
+
   const matchH = 46,
     gapUnit = 62;
   const n0 = rounds[0].length;
@@ -86,14 +101,24 @@ export default function BracketView({
               >
                 {SLOTS.map((slot) => {
                   const pid = m[slot];
+                  const otherId = slot === 'p1Id' ? m.p2Id : m.p1Id;
                   const isWinner = !!m.winnerId && m.winnerId === pid;
                   const canClick =
-                    !readOnly && pid && m.p1Id && m.p2Id && !m.winnerId;
+                    !readOnly && !!pid && !!otherId && !m.winnerId;
                   return (
                     <div
                       key={slot}
-                      className={`tk-bslot ${isWinner ? 'winner' : ''} ${!pid ? 'empty' : ''}`}
-                      onClick={() => canClick && pid && onReport(m.id, pid)}
+                      className={`tk-bslot ${isWinner ? 'winner' : ''} ${!pid ? 'empty' : ''} ${canClick ? 'clickable' : ''}`}
+                      role={canClick ? 'button' : undefined}
+                      tabIndex={canClick ? 0 : undefined}
+                      onClick={() =>
+                        canClick &&
+                        setPending({
+                          matchId: m.id,
+                          winnerId: pid,
+                          loserId: otherId,
+                        })
+                      }
                     >
                       <span>{nameOf(playerMap, pid)}</span>
                       {isWinner && <span className="tk-bwin">W</span>}
@@ -105,6 +130,24 @@ export default function BracketView({
           </div>
         ))}
       </div>
+      <Modal open={!!pending} onClose={closeConfirm} title="Confirm winner">
+        {pending && (
+          <>
+            <p className="tk-hint tk-bconfirm-text">
+              <b className="tk-gold">{nameOf(playerMap, pending.winnerId)}</b>{' '}
+              beats <b>{nameOf(playerMap, pending.loserId)}</b> and advances.
+            </p>
+            <div className="tk-modal-actions">
+              <button className="tk-btn ghost" onClick={closeConfirm}>
+                Cancel
+              </button>
+              <button className="tk-btn" onClick={confirmResult} autoFocus>
+                Confirm
+              </button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

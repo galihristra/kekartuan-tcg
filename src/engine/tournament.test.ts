@@ -345,8 +345,10 @@ describe('Single elimination', () => {
       const ids = new Set(players.map((p) => p.id));
       let bracket = createSingleEliminationBracket(players);
 
-      for (const round of bracket.rounds) {
-        for (const m of round) {
+      // Re-read each round from the latest bracket: reporting returns a new
+      // bracket, so the previous one never sees players advance.
+      for (let r = 0; r < bracket.rounds.length; r++) {
+        for (const m of bracket.rounds[r]) {
           if (!m.winnerId && m.p1Id && m.p2Id) {
             bracket = reportSingleEliminationResult(
               bracket,
@@ -375,6 +377,15 @@ describe('Single elimination advancement', () => {
     expect(final.winnerId).toBeNull();
   });
 
+  it('returns a new bracket so React state updates re-render', () => {
+    const before = createSingleEliminationBracket(makePlayers(4));
+    const m = before.rounds[0][0];
+    const after = reportSingleEliminationResult(before, m.id, m.p1Id!);
+    expect(after).not.toBe(before);
+    expect(before.rounds[0][0].winnerId).toBeNull();
+    expect(after.rounds[0][0].winnerId).toBe(m.p1Id);
+  });
+
   it('still advances round-1 byes automatically', () => {
     const bracket = createSingleEliminationBracket(makePlayers(3));
     const bye = bracket.rounds[0].find((m) => !m.p1Id || !m.p2Id)!;
@@ -389,8 +400,8 @@ describe('Single elimination placings', () => {
     const players = makePlayers(n);
     const seed = new Map(players.map((p, i) => [p.id, i]));
     let bracket = createSingleEliminationBracket(players);
-    for (const round of bracket.rounds)
-      for (const m of round)
+    for (let r = 0; r < bracket.rounds.length; r++)
+      for (const m of bracket.rounds[r])
         if (!m.winnerId && m.p1Id && m.p2Id)
           bracket = reportSingleEliminationResult(
             bracket,
