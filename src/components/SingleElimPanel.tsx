@@ -1,4 +1,5 @@
 import {
+  canUndoSingleEliminationResult,
   singleEliminationChampion,
   type Player,
   type SingleEliminationBracket,
@@ -15,6 +16,8 @@ interface SingleElimPanelProps {
   eventFinished: boolean;
   onGenerate: () => void;
   onReport: (matchId: string, winnerId: string) => void;
+  /** Takes back a result whose winner hasn't played their next match yet. */
+  onUndo: (matchId: string) => void;
   /** Marks the event complete once the final is in. */
   onFinishEvent: () => void;
   /** Archives the finished event and leaves for the dashboard. */
@@ -29,6 +32,7 @@ export default function SingleElimPanel({
   eventFinished,
   onGenerate,
   onReport,
+  onUndo,
   onFinishEvent,
   onNewEvent,
 }: SingleElimPanelProps) {
@@ -106,6 +110,8 @@ export default function SingleElimPanel({
         roundLabels={singleRoundLabels(bracket.totalRounds)}
         playerMap={playerMap}
         onReport={onReport}
+        canUndo={(matchId) => canUndoSingleEliminationResult(bracket, matchId)}
+        onUndo={onUndo}
         readOnly={!isAdmin || eventFinished}
       />
     </div>

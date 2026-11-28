@@ -7,6 +7,10 @@ interface BracketViewProps {
   roundLabels?: string[];
   playerMap: Record<string, Player>;
   onReport: (matchId: string, winnerId: string) => void;
+  /** Whether a reported result can still be taken back. Without it (and
+   *  `onUndo`) results are final once clicked. */
+  canUndo?: (matchId: string) => boolean;
+  onUndo?: (matchId: string) => void;
   readOnly?: boolean;
 }
 
@@ -17,6 +21,8 @@ export default function BracketView({
   roundLabels,
   playerMap,
   onReport,
+  canUndo,
+  onUndo,
   readOnly,
 }: BracketViewProps) {
   const matchH = 46,
@@ -89,6 +95,8 @@ export default function BracketView({
                   const isWinner = !!m.winnerId && m.winnerId === pid;
                   const canClick =
                     !readOnly && pid && m.p1Id && m.p2Id && !m.winnerId;
+                  const undoable =
+                    isWinner && !readOnly && !!onUndo && !!canUndo?.(m.id);
                   return (
                     <div
                       key={slot}
@@ -96,7 +104,22 @@ export default function BracketView({
                       onClick={() => canClick && pid && onReport(m.id, pid)}
                     >
                       <span>{nameOf(playerMap, pid)}</span>
-                      {isWinner && <span className="tk-bwin">W</span>}
+                      {undoable ? (
+                        <button
+                          type="button"
+                          className="tk-bundo"
+                          title="Undo this result"
+                          aria-label={`Undo ${nameOf(playerMap, pid)}'s win`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUndo(m.id);
+                          }}
+                        >
+                          W ↺
+                        </button>
+                      ) : (
+                        isWinner && <span className="tk-bwin">W</span>
+                      )}
                     </div>
                   );
                 })}

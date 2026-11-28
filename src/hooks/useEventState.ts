@@ -9,6 +9,7 @@ import {
   matchesThroughRound,
   createSingleEliminationBracket,
   reportSingleEliminationResult,
+  undoSingleEliminationResult,
   createDoubleEliminationBracket,
   reportDoubleEliminationResult,
 } from '../engine/tournament';
@@ -509,6 +510,9 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
       b ? reportSingleEliminationResult(b, matchId, winnerId) : b,
     );
   }, []);
+  const undoSingle = useCallback((matchId: string) => {
+    setSingleBracket((b) => (b ? undoSingleEliminationResult(b, matchId) : b));
+  }, []);
   const reportDouble = useCallback((matchId: string, winnerId: string) => {
     setDoubleBracket((b) =>
       b ? reportDoubleEliminationResult(b, matchId, winnerId) : b,
@@ -593,6 +597,7 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
     genSingle,
     genDouble,
     reportSingle,
+    undoSingle,
     reportDouble,
 
     // lifecycle

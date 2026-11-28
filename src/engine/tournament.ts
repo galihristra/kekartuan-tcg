@@ -872,15 +872,64 @@ function reportSingleEliminationResult(
   matchId: string,
   winnerId: string,
 ): SingleEliminationBracket {
-  for (const round of bracket.rounds) {
+  // Brackets live in React state, so every change returns a new bracket. A
+  // bracket changed in place keeps its identity, and React would skip both
+  // the re-render and the autosave.
+  const next = structuredClone(bracket);
+  for (const round of next.rounds) {
     const m = round.find((x) => x.id === matchId);
     if (m) {
       m.winnerId = winnerId;
       break;
     }
   }
-  propagateSingleElim(bracket);
-  return bracket;
+  propagateSingleElim(next);
+  return next;
+}
+
+/** Where a match sits in the bracket, plus the match its winner moves on to
+ *  (null for the final). */
+function locateSingleElimMatch(
+  bracket: SingleEliminationBracket,
+  matchId: string,
+) {
+  for (let r = 0; r < bracket.rounds.length; r++) {
+    const i = bracket.rounds[r].findIndex((x) => x.id === matchId);
+    if (i !== -1)
+      return {
+        r,
+        i,
+        match: bracket.rounds[r][i],
+        next: bracket.rounds[r + 1]?.[Math.floor(i / 2)] ?? null,
+      };
+  }
+  return null;
+}
+
+/** A result can be taken back while it hasn't been built on: the winner's
+ *  next match is still unplayed. Byes are decided by the draw, not reported,
+ *  so they can't be undone. */
+function canUndoSingleEliminationResult(
+  bracket: SingleEliminationBracket,
+  matchId: string,
+): boolean {
+  const loc = locateSingleElimMatch(bracket, matchId);
+  if (!loc) return false;
+  const { match, next } = loc;
+  return !!match.winnerId && !!match.p1Id && !!match.p2Id && !next?.winnerId;
+}
+
+/** Clears a reported result and takes the winner back out of the next round. */
+function undoSingleEliminationResult(
+  bracket: SingleEliminationBracket,
+  matchId: string,
+): SingleEliminationBracket {
+  if (!canUndoSingleEliminationResult(bracket, matchId)) return bracket;
+  const next = structuredClone(bracket);
+  const loc = locateSingleElimMatch(next, matchId)!;
+  loc.match.winnerId = null;
+  if (loc.next) loc.next[loc.i % 2 === 0 ? 'p1Id' : 'p2Id'] = null;
+  return next;
 }
 
 // ===================== Double elimination =====================
@@ -1099,16 +1148,18 @@ function reportDoubleEliminationResult(
   matchId: string,
   winnerId: string,
 ): DoubleEliminationBracket {
+  // A new bracket, not a changed one: see reportSingleEliminationResult.
+  const next = structuredClone(bracket);
   const all: (WBMatch | LBMatch | GrandFinalMatch)[] = [
-    ...bracket.wbRounds.flat(),
-    ...bracket.lbRounds.flatMap((r) => r.matches),
-    bracket.grandFinal,
-    bracket.grandFinalReset,
+    ...next.wbRounds.flat(),
+    ...next.lbRounds.flatMap((r) => r.matches),
+    next.grandFinal,
+    next.grandFinalReset,
   ];
   const m = all.find((x) => x.id === matchId);
   if (m) m.winnerId = winnerId;
-  propagateDoubleElim(bracket);
-  return bracket;
+  propagateDoubleElim(next);
+  return next;
 }
 
 export {
@@ -1122,6 +1173,8 @@ export {
   generateSeedOrder,
   createSingleEliminationBracket,
   reportSingleEliminationResult,
+  canUndoSingleEliminationResult,
+  undoSingleEliminationResult,
   singleEliminationChampion,
   singleEliminationPlacings,
   createDoubleEliminationBracket,

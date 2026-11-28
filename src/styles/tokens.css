@@ -699,6 +699,21 @@ a.tk-btn {
 .tk-bwin {
   font-size: 10px;
 }
+/* The winner's "W", offered as an undo while the next match is unplayed. */
+.tk-bundo {
+  font: inherit;
+  font-size: 10px;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  cursor: pointer;
+}
+.tk-bundo:hover,
+.tk-bundo:focus-visible {
+  border-color: var(--gold);
+}
 .tk-reset-label {
   font-size: 10px;
   color: var(--gold);

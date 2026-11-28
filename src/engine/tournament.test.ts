@@ -8,6 +8,8 @@ import {
   matchesThroughRound,
   createSingleEliminationBracket,
   reportSingleEliminationResult,
+  canUndoSingleEliminationResult,
+  undoSingleEliminationResult,
   singleEliminationChampion,
   singleEliminationPlacings,
   createDoubleEliminationBracket,
@@ -345,8 +347,10 @@ describe('Single elimination', () => {
       const ids = new Set(players.map((p) => p.id));
       let bracket = createSingleEliminationBracket(players);
 
-      for (const round of bracket.rounds) {
-        for (const m of round) {
+      // Read each match from the current bracket: reporting returns a new one.
+      for (let r = 0; r < bracket.rounds.length; r++) {
+        for (let i = 0; i < bracket.rounds[r].length; i++) {
+          const m = bracket.rounds[r][i];
           if (!m.winnerId && m.p1Id && m.p2Id) {
             bracket = reportSingleEliminationResult(
               bracket,
@@ -383,20 +387,99 @@ describe('Single elimination advancement', () => {
   });
 });
 
+describe('Single elimination state updates', () => {
+  it('returns a new bracket and leaves the old one untouched', () => {
+    const before = createSingleEliminationBracket(makePlayers(4));
+    const m = before.rounds[0][0];
+    const after = reportSingleEliminationResult(before, m.id, m.p1Id!);
+    expect(after).not.toBe(before);
+    expect(before.rounds[0][0].winnerId).toBeNull();
+    expect(before.rounds[1][0].p1Id).toBeNull();
+    expect(after.rounds[0][0].winnerId).toBe(m.p1Id);
+  });
+
+  it('returns a new double-elim bracket too', () => {
+    const before = createDoubleEliminationBracket(makePlayers(4));
+    const m = before.wbRounds[0][0];
+    const after = reportDoubleEliminationResult(before, m.id, m.p1Id!);
+    expect(after).not.toBe(before);
+    expect(before.wbRounds[0][0].winnerId).toBeNull();
+  });
+});
+
+describe('Single elimination undo', () => {
+  function semisPlayed() {
+    let bracket = createSingleEliminationBracket(makePlayers(4));
+    const [semi1, semi2] = bracket.rounds[0];
+    bracket = reportSingleEliminationResult(bracket, semi1.id, semi1.p1Id!);
+    bracket = reportSingleEliminationResult(bracket, semi2.id, semi2.p1Id!);
+    return { bracket, semi1, semi2, final: bracket.rounds[1][0] };
+  }
+
+  it('clears the result and takes the winner back out of the next round', () => {
+    const { bracket, semi1, semi2 } = semisPlayed();
+    expect(canUndoSingleEliminationResult(bracket, semi1.id)).toBe(true);
+    const undone = undoSingleEliminationResult(bracket, semi1.id);
+    expect(undone).not.toBe(bracket);
+    expect(undone.rounds[0][0].winnerId).toBeNull();
+    expect(undone.rounds[1][0].p1Id).toBeNull();
+    expect(undone.rounds[1][0].p2Id).toBe(semi2.p1Id);
+    // The old bracket is untouched.
+    expect(bracket.rounds[0][0].winnerId).toBe(semi1.p1Id);
+  });
+
+  it('lets the match be reported again with the other winner', () => {
+    const { bracket, semi1 } = semisPlayed();
+    const fixed = reportSingleEliminationResult(
+      undoSingleEliminationResult(bracket, semi1.id),
+      semi1.id,
+      semi1.p2Id!,
+    );
+    expect(fixed.rounds[1][0].p1Id).toBe(semi1.p2Id);
+  });
+
+  it('refuses once the next match has been played', () => {
+    const { bracket, semi1, final } = semisPlayed();
+    const done = reportSingleEliminationResult(bracket, final.id, semi1.p1Id!);
+    expect(canUndoSingleEliminationResult(done, semi1.id)).toBe(false);
+    expect(undoSingleEliminationResult(done, semi1.id)).toBe(done);
+  });
+
+  it('can undo the final, which clears the champion', () => {
+    const { bracket, semi1, final } = semisPlayed();
+    const done = reportSingleEliminationResult(bracket, final.id, semi1.p1Id!);
+    expect(canUndoSingleEliminationResult(done, final.id)).toBe(true);
+    const undone = undoSingleEliminationResult(done, final.id);
+    expect(singleEliminationChampion(undone)).toBeNull();
+    expect(undone.rounds[1][0].p1Id).toBe(semi1.p1Id);
+  });
+
+  it('refuses byes and unplayed matches', () => {
+    const bracket = createSingleEliminationBracket(makePlayers(3));
+    const bye = bracket.rounds[0].find((m) => !m.p1Id || !m.p2Id)!;
+    const real = bracket.rounds[0].find((m) => m.p1Id && m.p2Id)!;
+    expect(canUndoSingleEliminationResult(bracket, bye.id)).toBe(false);
+    expect(canUndoSingleEliminationResult(bracket, real.id)).toBe(false);
+    expect(canUndoSingleEliminationResult(bracket, 'nope')).toBe(false);
+  });
+});
+
 describe('Single elimination placings', () => {
   /** Plays every match out, the higher seed (lower id number) always winning. */
   function playOut(n: number) {
     const players = makePlayers(n);
     const seed = new Map(players.map((p, i) => [p.id, i]));
     let bracket = createSingleEliminationBracket(players);
-    for (const round of bracket.rounds)
-      for (const m of round)
+    for (let r = 0; r < bracket.rounds.length; r++)
+      for (let i = 0; i < bracket.rounds[r].length; i++) {
+        const m = bracket.rounds[r][i];
         if (!m.winnerId && m.p1Id && m.p2Id)
           bracket = reportSingleEliminationResult(
             bracket,
             m.id,
             seed.get(m.p1Id)! < seed.get(m.p2Id)! ? m.p1Id : m.p2Id,
           );
+      }
     return { players, bracket };
   }
 

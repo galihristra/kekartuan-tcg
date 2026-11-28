@@ -243,6 +243,7 @@ export default function CurrentEventPage({
               eventFinished={ev.eventFinished}
               onGenerate={ev.genSingle}
               onReport={ev.reportSingle}
+              onUndo={ev.undoSingle}
               onFinishEvent={ev.finishEvent}
               onNewEvent={archiveAndLeave}
             />
