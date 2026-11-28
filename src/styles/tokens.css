@@ -604,12 +604,15 @@ a.tk-btn {
   padding: 6px 9px;
   font-size: 12.5px;
   border-bottom: 1px solid var(--border);
+  cursor: default;
+}
+.tk-bslot.clickable {
   cursor: pointer;
 }
 .tk-bslot:last-child {
   border-bottom: none;
 }
-.tk-bslot:hover {
+.tk-bslot.clickable:hover {
   background: rgba(214, 169, 60, 0.1);
 }
 .tk-bslot.winner {
@@ -623,6 +626,10 @@ a.tk-btn {
 }
 .tk-bslot.empty:hover {
   background: none;
+}
+.tk-bconfirm-text {
+  margin: 0 0 14px;
+  line-height: 1.5;
 }
 .tk-lbwrap {
   display: flex;

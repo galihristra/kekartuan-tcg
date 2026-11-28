@@ -867,11 +867,15 @@ function singleEliminationPlacings(
     );
 }
 
+// Returns a new bracket rather than editing the one passed in: React state
+// setters bail out on an unchanged reference, so an in-place edit would never
+// re-render the bracket after a result is reported.
 function reportSingleEliminationResult(
-  bracket: SingleEliminationBracket,
+  current: SingleEliminationBracket,
   matchId: string,
   winnerId: string,
 ): SingleEliminationBracket {
+  const bracket = structuredClone(current);
   for (const round of bracket.rounds) {
     const m = round.find((x) => x.id === matchId);
     if (m) {
@@ -1094,11 +1098,13 @@ function propagateDoubleElim(bracket: DoubleEliminationBracket): void {
   }
 }
 
+// Returns a new bracket for the same reason as the single-elim version.
 function reportDoubleEliminationResult(
-  bracket: DoubleEliminationBracket,
+  current: DoubleEliminationBracket,
   matchId: string,
   winnerId: string,
 ): DoubleEliminationBracket {
+  const bracket = structuredClone(current);
   const all: (WBMatch | LBMatch | GrandFinalMatch)[] = [
     ...bracket.wbRounds.flat(),
     ...bracket.lbRounds.flatMap((r) => r.matches),
