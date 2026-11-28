@@ -8,6 +8,8 @@ import {
   matchesThroughRound,
   createSingleEliminationBracket,
   reportSingleEliminationResult,
+  singleEliminationChampion,
+  singleEliminationPlacings,
   createDoubleEliminationBracket,
   reportDoubleEliminationResult,
 } from './tournament';
@@ -359,6 +361,80 @@ describe('Single elimination', () => {
       expect(ids.has(final.winnerId!)).toBe(true);
     },
   );
+});
+
+describe('Single elimination advancement', () => {
+  it('waits for both semifinals before the final has a winner', () => {
+    let bracket = createSingleEliminationBracket(makePlayers(4));
+    const [semi1, semi2] = bracket.rounds[0];
+    bracket = reportSingleEliminationResult(bracket, semi1.id, semi1.p1Id!);
+    expect(singleEliminationChampion(bracket)).toBeNull();
+    bracket = reportSingleEliminationResult(bracket, semi2.id, semi2.p2Id!);
+    const final = bracket.rounds[1][0];
+    expect([final.p1Id, final.p2Id]).toEqual([semi1.p1Id, semi2.p2Id]);
+    expect(final.winnerId).toBeNull();
+  });
+
+  it('still advances round-1 byes automatically', () => {
+    const bracket = createSingleEliminationBracket(makePlayers(3));
+    const bye = bracket.rounds[0].find((m) => !m.p1Id || !m.p2Id)!;
+    expect(bye.winnerId).toBe(bye.p1Id ?? bye.p2Id);
+    expect(singleEliminationChampion(bracket)).toBeNull();
+  });
+});
+
+describe('Single elimination placings', () => {
+  /** Plays every match out, the higher seed (lower id number) always winning. */
+  function playOut(n: number) {
+    const players = makePlayers(n);
+    const seed = new Map(players.map((p, i) => [p.id, i]));
+    let bracket = createSingleEliminationBracket(players);
+    for (const round of bracket.rounds)
+      for (const m of round)
+        if (!m.winnerId && m.p1Id && m.p2Id)
+          bracket = reportSingleEliminationResult(
+            bracket,
+            m.id,
+            seed.get(m.p1Id)! < seed.get(m.p2Id)! ? m.p1Id : m.p2Id,
+          );
+    return { players, bracket };
+  }
+
+  it('has no champion until the final is reported', () => {
+    const bracket = createSingleEliminationBracket(makePlayers(4));
+    expect(singleEliminationChampion(bracket)).toBeNull();
+    expect(
+      singleEliminationPlacings(bracket).every((p) => p.place === null),
+    ).toBe(true);
+  });
+
+  it('places players by the round they went out in', () => {
+    const { players, bracket } = playOut(8);
+    expect(singleEliminationChampion(bracket)).toBe(players[0].id);
+    const places = singleEliminationPlacings(bracket).map((p) => p.place);
+    expect(places).toEqual([1, 2, 3, 3, 5, 5, 5, 5]);
+  });
+
+  it('lists every player once, byes included', () => {
+    const { players, bracket } = playOut(5);
+    const placings = singleEliminationPlacings(bracket);
+    expect(placings.map((p) => p.playerId).sort()).toEqual(
+      players.map((p) => p.id).sort(),
+    );
+    expect(placings[0]).toEqual({ playerId: players[0].id, place: 1 });
+    expect(placings.every((p) => p.place !== null)).toBe(true);
+  });
+
+  it('leaves players still alive in an unfinished bracket unplaced', () => {
+    const players = makePlayers(4);
+    let bracket = createSingleEliminationBracket(players);
+    const first = bracket.rounds[0][0];
+    bracket = reportSingleEliminationResult(bracket, first.id, first.p1Id!);
+    const placings = singleEliminationPlacings(bracket);
+    expect(placings.filter((p) => p.place !== null)).toEqual([
+      { playerId: first.p2Id, place: 3 },
+    ]);
+  });
 });
 
 describe('Double elimination', () => {

@@ -19,8 +19,11 @@ it.
     organizer can manually swap individual players between pairings.
   - **League**: a full round-robin schedule generated up front, with each
     match recorded game by game as a Best of 3.
-  - Single and double elimination brackets are implemented in the engine and
-    UI, but are currently hidden from the "start an event" form.
+  - **Single elimination**: a seeded bracket (roster order, byes to the top
+    seeds). Generating it locks the roster and closes registration; archived
+    events show placings and the final bracket.
+  - Double elimination is implemented in the engine and UI but hidden from the
+    "start an event" form: its bracket advancement is not trustworthy yet.
 - **Results**: a win, a **draw**, or a **double loss** (for a match that runs
   out of time). Matches score 3 / 1 / 0 points, and a bye counts as a win.
 - **Standings with honest tiebreaks**, which depend on the format:

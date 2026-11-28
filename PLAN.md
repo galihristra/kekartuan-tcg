@@ -91,10 +91,13 @@ rules for sanctioned play) — flag it before then.
 
 TODO / follow-ups for Phase 2:
 
-- [ ] **Archive view for elimination events.** The "Past events" detail shows
-      Swiss _standings_, which is meaningless for Single/Double Elim events (their
-      result lives in the bracket, not match points — an archived elim event shows
-      everyone at 0). Show the final bracket / champion for elim-format archives.
+- [x] **Archive view for single elimination.** Archived single-elim events show
+      the champion, placings by elimination round, and the final bracket instead
+      of Swiss standings.
+- [ ] **Double elimination before re-enabling it.** Its propagation auto-advances
+      any match with one empty slot, so one reported result can send players
+      straight to the grand final (single elim had the same bug, now fixed).
+      It also needs the archive view and a finish flow, as single elim got.
 - [ ] Consider formalizing "an event has one chosen format" instead of the
       free tab-switch, so archives are unambiguous.
 - [ ] Last-write-wins only; no multi-device conflict handling (fine for a

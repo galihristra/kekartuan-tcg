@@ -493,8 +493,14 @@ export function useEventState(eventId: string, opts?: EventStateOptions) {
   /** Drops the organizer's ordering, putting every tie back to shared places. */
   const clearStandingsOrder = () => setStandingsOrder([]);
 
-  const genSingle = () =>
+  // Generating the bracket is what starts a single-elim event, so it moves the
+  // round pointer off 0 the way Swiss round 1 does. That locks the roster and
+  // closes self-registration (here and in the `public_register` RLS policy),
+  // since nobody can be added to a bracket that's already drawn.
+  const genSingle = () => {
     setSingleBracket(createSingleEliminationBracket(players));
+    setRound(1);
+  };
   const genDouble = () =>
     setDoubleBracket(createDoubleEliminationBracket(players));
 

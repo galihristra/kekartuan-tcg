@@ -300,8 +300,11 @@ export default function EventSidebar({
                   ×
                 </button>
               )}
+              {/* A bracket has no next round to leave out of: someone who
+                  leaves a single-elim event loses their match instead. */}
               {isAdmin &&
                 rosterLocked &&
+                mode !== 'single' &&
                 !removablePlayerIds.has(p.id) &&
                 !p.dropped &&
                 !eventFinished && (

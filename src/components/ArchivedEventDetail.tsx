@@ -2,8 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import {
   computeStandings,
   matchesThroughRound,
+  singleEliminationChampion,
+  singleEliminationPlacings,
   swissStandingsMode,
 } from '../engine/tournament';
+import { singleRoundLabels } from '../lib/bracketLabels';
+import { nameOf } from '../lib/bracketHelpers';
 import {
   EVENT_DESCRIPTION_MAX_LENGTH,
   matchFormatOf,
@@ -11,6 +15,8 @@ import {
 } from '../lib/eventStore';
 import type { ArchivedEventSummary } from '../lib/eventStore';
 import StandingsTable from './StandingsTable';
+import BracketView from './BracketView';
+import ElimPlacingsTable from './ElimPlacingsTable';
 import EventPhotos from './EventPhotos';
 import EventLocation from './EventLocation';
 import FormatBadge from './FormatBadge';
@@ -134,19 +140,25 @@ export default function ArchivedEventDetail({
     // archived table has to reproduce them rather than fall back to a tie.
     event.state.standingsOrder ?? [],
   );
+  const playerMap = Object.fromEntries(
+    event.state.players.map((p) => [p.id, p]),
+  );
+  // A single-elim event's result is its bracket: it never records Swiss
+  // matches, so the standings above would show every player on 0 points.
+  const bracket =
+    event.state.mode === 'single' ? event.state.singleBracket : null;
+  const championNames = bracket
+    ? nameOf(playerMap, singleEliminationChampion(bracket))
+    : standings
+        .filter((r) => r.rank === 1)
+        .map((r) => r.name)
+        .join(' & ') || '—';
 
   return (
     <>
       {event.state.eventFinished ? (
         <div className="tk-champion">
-          🏆{' '}
-          <b className="tk-gold">
-            {standings
-              .filter((r) => r.rank === 1)
-              .map((r) => r.name)
-              .join(' & ') || '—'}
-          </b>{' '}
-          — {event.name}
+          🏆 <b className="tk-gold">{championNames}</b> — {event.name}
         </div>
       ) : (
         <div className="tk-champion">
@@ -190,21 +202,48 @@ export default function ArchivedEventDetail({
           <p className="tk-eventdescription-readonly">{event.description}</p>
         )
       )}
-      <h3 className="tk-section-title">
-        {event.state.eventFinished
-          ? 'Final Standings'
-          : 'Standings at cancellation'}
-      </h3>
-      <StandingsTable
-        rows={standings}
-        playerMap={Object.fromEntries(
-          event.state.players.map((p) => [p.id, p]),
-        )}
-        mode={standingsMode}
-        eventName={event.name}
-        eventDate={event.created_at}
-        onEditDeck={isAdmin ? setEditingDeckPlayerId : undefined}
-      />
+      {bracket ? (
+        <>
+          <h3 className="tk-section-title">
+            {event.state.eventFinished
+              ? 'Final Placings'
+              : 'Placings at cancellation'}
+          </h3>
+          <ElimPlacingsTable
+            placings={singleEliminationPlacings(bracket)}
+            playerMap={playerMap}
+            onEditDeck={isAdmin ? setEditingDeckPlayerId : undefined}
+          />
+          <h3 className="tk-section-title">
+            {event.state.eventFinished
+              ? 'Final Bracket'
+              : 'Bracket at cancellation'}
+          </h3>
+          <BracketView
+            rounds={bracket.rounds}
+            roundLabels={singleRoundLabels(bracket.totalRounds)}
+            playerMap={playerMap}
+            onReport={() => {}}
+            readOnly
+          />
+        </>
+      ) : (
+        <>
+          <h3 className="tk-section-title">
+            {event.state.eventFinished
+              ? 'Final Standings'
+              : 'Standings at cancellation'}
+          </h3>
+          <StandingsTable
+            rows={standings}
+            playerMap={playerMap}
+            mode={standingsMode}
+            eventName={event.name}
+            eventDate={event.created_at}
+            onEditDeck={isAdmin ? setEditingDeckPlayerId : undefined}
+          />
+        </>
+      )}
       <h3 className="tk-section-title">Photos</h3>
       <EventPhotos eventId={event.id} isAdmin={isAdmin} />
 

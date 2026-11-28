@@ -5,6 +5,7 @@ import {
   listActiveEvents,
   matchFormatOf,
 } from '../lib/eventStore';
+import { MODE_LABELS } from '../components/FormatBadge';
 import type {
   ArchivedEventSummary,
   MatchFormat,
@@ -14,12 +15,12 @@ import type {
 const MODE_OPTIONS: [Mode, string][] = [
   ['swiss', 'Swiss'],
   ['league', 'League'],
-  // ['single', 'Single Elim'],
+  ['single', 'Single Elim'],
   // ['double', 'Double Elim'],
 ];
 
 function modeLabel(mode: Mode): string {
-  return MODE_OPTIONS.find(([m]) => m === mode)?.[1] ?? mode;
+  return MODE_LABELS[mode];
 }
 
 const MATCH_FORMAT_OPTIONS: [MatchFormat, string][] = [
@@ -35,6 +36,7 @@ function progressLabel(ev: ArchivedEventSummary): string {
       : modeLabel(mode);
   if (eventFinished) return `${format} · finished`;
   if (round === 0) return `${format} · not started`;
+  if (mode === 'single') return `${format} · bracket in progress`;
   return `${format} · round ${round}`;
 }
 
